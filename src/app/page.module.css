@@ -1,0 +1,151 @@
+.page {
+  display: flex;
+  flex: 1;
+  align-items: stretch;
+  justify-content: center;
+  padding: 24px;
+}
+
+.main {
+  display: grid;
+  width: min(1120px, 100%);
+  gap: 28px;
+  padding: 36px;
+  border: 1px solid rgba(48, 73, 54, 0.12);
+  border-radius: 32px;
+  background:
+    radial-gradient(circle at top right, rgba(255, 255, 255, 0.6), transparent 28%),
+    linear-gradient(135deg, rgba(246, 238, 216, 0.96), rgba(232, 244, 230, 0.96));
+  box-shadow: 0 30px 80px rgba(37, 52, 41, 0.12);
+}
+
+.hero {
+  display: grid;
+  gap: 18px;
+  padding: 8px 4px 16px;
+}
+
+.eyebrow {
+  font-size: 0.84rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #48613f;
+}
+
+.hero h1 {
+  max-width: 12ch;
+  font-size: clamp(3rem, 9vw, 6.4rem);
+  line-height: 0.93;
+  letter-spacing: -0.08em;
+  color: #1f3527;
+  text-wrap: balance;
+}
+
+.copy {
+  max-width: 640px;
+  font-size: 1.1rem;
+  line-height: 1.8;
+  color: rgba(31, 53, 39, 0.8);
+}
+
+.ctas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  padding-top: 8px;
+}
+
+.primary,
+.secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 20px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-weight: 600;
+  transition:
+    transform 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease;
+}
+
+.primary {
+  background: #1f3527;
+  color: #f7f1df;
+}
+
+.secondary {
+  background: rgba(255, 255, 255, 0.54);
+  border-color: rgba(31, 53, 39, 0.12);
+  color: #1f3527;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.card {
+  display: grid;
+  gap: 10px;
+  padding: 22px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(31, 53, 39, 0.08);
+}
+
+.card span {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: #658159;
+}
+
+.card h2 {
+  font-size: 1.2rem;
+  color: #1f3527;
+}
+
+.card p {
+  line-height: 1.7;
+  color: rgba(31, 53, 39, 0.76);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .primary:hover,
+  .secondary:hover {
+    transform: translateY(-1px);
+  }
+
+  .primary:hover {
+    background: #294632;
+  }
+
+  .secondary:hover {
+    background: rgba(255, 255, 255, 0.92);
+  }
+}
+
+@media (max-width: 900px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+
+  .main {
+    padding: 26px;
+  }
+}
+
+@media (max-width: 640px) {
+  .page {
+    padding: 14px;
+  }
+
+  .main {
+    padding: 20px;
+    border-radius: 24px;
+  }
+}
