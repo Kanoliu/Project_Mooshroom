@@ -1,4 +1,4 @@
-const CACHE_NAME = "project-mooshroom-v1";
+const CACHE_NAME = "project-mooshroom-v2";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {
@@ -39,12 +39,8 @@ self.addEventListener("fetch", (event) => {
   }
 
   event.respondWith(
-    caches.match(request).then((cachedResponse) => {
-      if (cachedResponse) {
-        return cachedResponse;
-      }
-
-      return fetch(request).then((networkResponse) => {
+    fetch(request)
+      .then((networkResponse) => {
         const responseClone = networkResponse.clone();
 
         void caches
@@ -52,7 +48,14 @@ self.addEventListener("fetch", (event) => {
           .then((cache) => cache.put(request, responseClone));
 
         return networkResponse;
-      });
-    }),
+      })
+      .catch(async () => {
+        const cachedResponse = await caches.match(request);
+        if (cachedResponse) {
+          return cachedResponse;
+        }
+
+        throw new Error(`No cached response for ${request.url}`);
+      }),
   );
 });

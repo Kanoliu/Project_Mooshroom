@@ -3,10 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
+    "dev": "powershell -ExecutionPolicy Bypass -Command \"& { $root = Split-Path -Parent $env:npm_package_json; node (Join-Path $root 'node_modules\\next\\dist\\bin\\next') dev }\"",
+    "build": "powershell -ExecutionPolicy Bypass -Command \"& { $root = Split-Path -Parent $env:npm_package_json; node (Join-Path $root 'node_modules\\next\\dist\\bin\\next') build }\"",
+    "start": "powershell -ExecutionPolicy Bypass -Command \"& { $root = Split-Path -Parent $env:npm_package_json; node (Join-Path $root 'node_modules\\next\\dist\\bin\\next') start }\"",
+    "lint": "powershell -ExecutionPolicy Bypass -Command \"& { $root = Split-Path -Parent $env:npm_package_json; node (Join-Path $root 'node_modules\\eslint\\bin\\eslint.js') . }\"",
+    "sync:art": "powershell -ExecutionPolicy Bypass -Command \"& { $root = Split-Path -Parent $env:npm_package_json; & (Join-Path $root 'scripts\\sync-art.ps1') }\""
   },
   "dependencies": {
     "next": "16.2.1",
