@@ -1,6 +1,7 @@
 "use client";
 
 import Image from "next/image";
+import type { User } from "@supabase/supabase-js";
 import {
   type CSSProperties,
   type FormEvent,
@@ -10,6 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { supabase } from "@/lib/supabase";
 import styles from "./page.module.css";
 
 type NoteItem = {
@@ -23,7 +25,10 @@ type NotesState = {
   notes: NoteItem[];
 };
 
-type NotesAction = { type: "hydrate"; notes: NoteItem[] } | { type: "add"; note: NoteItem };
+type NotesAction =
+  | { type: "hydrate"; notes: NoteItem[] }
+  | { type: "add"; note: NoteItem }
+  | { type: "reset" };
 
 type CardLayout = {
   art: string;
@@ -35,8 +40,8 @@ type CardLayout = {
 };
 
 type PetAnimation = "idle" | "note";
-
-const STORAGE_KEY = "mooshroom-notes";
+type AuthStatus = "setup-required" | "idle" | "sending-link" | "syncing-space" | "ready" | "error";
+type NotesStatus = "idle" | "loading" | "saving" | "ready" | "error";
 
 const petFrames = Array.from({ length: 60 }, (_, index) => {
   const frameNumber = String(index + 1).padStart(4, "0");
@@ -95,6 +100,11 @@ function notesReducer(state: NotesState, action: NotesAction): NotesState {
         ...state,
         notes: [action.note, ...state.notes],
       };
+    case "reset":
+      return {
+        hasHydrated: false,
+        notes: [],
+      };
     default:
       return state;
   }
@@ -102,9 +112,19 @@ function notesReducer(state: NotesState, action: NotesAction): NotesState {
 
 export default function Home() {
   const [isNoteOpen, setIsNoteOpen] = useState(false);
+  const [isAuthMenuOpen, setIsAuthMenuOpen] = useState(false);
   const [draft, setDraft] = useState("");
+  const [email, setEmail] = useState("");
   const [currentFrame, setCurrentFrame] = useState(0);
   const [petAnimation, setPetAnimation] = useState<PetAnimation>("idle");
+  const [authStatus, setAuthStatus] = useState<AuthStatus>(
+    supabase ? "idle" : "setup-required",
+  );
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
+  const [notesStatus, setNotesStatus] = useState<NotesStatus>("idle");
+  const [notesMessage, setNotesMessage] = useState<string | null>(null);
   const [notesState, dispatch] = useReducer(notesReducer, {
     hasHydrated: false,
     notes: [],
@@ -112,39 +132,157 @@ export default function Home() {
 
   const noteButtonRef = useRef<HTMLButtonElement>(null);
   const noteInputRef = useRef<HTMLTextAreaElement>(null);
+  const authMenuRef = useRef<HTMLDivElement>(null);
   const hadNoteOpenRef = useRef(false);
   const pendingNoteReactionRef = useRef(false);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    let parsedNotes: NoteItem[] = [];
-
-    if (stored) {
-      try {
-        const parsed = JSON.parse(stored) as NoteItem[];
-        if (Array.isArray(parsed)) {
-          parsedNotes = parsed.filter(
-            (item): item is NoteItem =>
-              typeof item?.id === "string" &&
-              typeof item?.text === "string" &&
-              typeof item?.createdAt === "string",
-          );
-        }
-      } catch {
-        window.localStorage.removeItem(STORAGE_KEY);
-      }
-    }
-
-    dispatch({ type: "hydrate", notes: parsedNotes });
-  }, []);
-
-  useEffect(() => {
-    if (!notesState.hasHydrated) {
+    if (!supabase) {
       return;
     }
 
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(notesState.notes));
-  }, [notesState]);
+    let isMounted = true;
+
+    const hydrateAuth = async (user: User | null) => {
+      if (!isMounted) {
+        return;
+      }
+
+      setCurrentUser(user);
+
+      if (!user) {
+        setActiveSpaceId(null);
+        dispatch({ type: "reset" });
+        setNotesStatus("idle");
+        setNotesMessage(null);
+        setAuthStatus("idle");
+        setAuthMessage(null);
+        return;
+      }
+
+      setAuthStatus("syncing-space");
+
+      const result = await ensureDefaultSpaceMembership(user.id);
+      if (!isMounted) {
+        return;
+      }
+
+      if (result.error) {
+        setActiveSpaceId(null);
+        setAuthStatus("error");
+        setAuthMessage(result.error);
+        return;
+      }
+
+      setActiveSpaceId(result.spaceId);
+      setAuthStatus("ready");
+      setAuthMessage(`Signed in to ${result.spaceName}.`);
+    };
+
+    void supabase.auth.getUser().then(({ data, error }) => {
+      if (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        setAuthStatus("error");
+        setAuthMessage(error.message);
+        return;
+      }
+
+      void hydrateAuth(data.user);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      void hydrateAuth(session?.user ?? null);
+    });
+
+    return () => {
+      isMounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    let statusTimeout: number | null = null;
+
+    if (!supabase) {
+      dispatch({ type: "reset" });
+      statusTimeout = window.setTimeout(() => {
+        setNotesStatus("error");
+        setNotesMessage("Supabase is not configured.");
+      }, 0);
+      return () => {
+        if (statusTimeout !== null) {
+          window.clearTimeout(statusTimeout);
+        }
+      };
+    }
+
+    if (!activeSpaceId) {
+      dispatch({ type: "reset" });
+      statusTimeout = window.setTimeout(() => {
+        setNotesStatus(currentUser ? "loading" : "idle");
+        setNotesMessage(currentUser ? "Preparing your shared notes." : "Sign in to see shared notes.");
+      }, 0);
+      return () => {
+        if (statusTimeout !== null) {
+          window.clearTimeout(statusTimeout);
+        }
+      };
+    }
+
+    let isMounted = true;
+
+    const loadNotes = async () => {
+      setNotesStatus("loading");
+      setNotesMessage(null);
+
+      const result = await fetchNotesForSpace(activeSpaceId);
+      if (!isMounted) {
+        return;
+      }
+
+      if (result.error) {
+        dispatch({ type: "hydrate", notes: [] });
+        setNotesStatus("error");
+        setNotesMessage(result.error);
+        return;
+      }
+
+      dispatch({ type: "hydrate", notes: result.notes });
+      setNotesStatus("ready");
+      setNotesMessage(null);
+    };
+
+    void loadNotes();
+
+    const channel = supabase
+      .channel(`notes:${activeSpaceId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "notes",
+          filter: `space_id=eq.${activeSpaceId}`,
+        },
+        () => {
+          void loadNotes();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      if (statusTimeout !== null) {
+        window.clearTimeout(statusTimeout);
+      }
+      isMounted = false;
+      void supabase.removeChannel(channel);
+    };
+  }, [activeSpaceId, currentUser]);
 
   useEffect(() => {
     const activeFrames = petAnimation === "note" ? petNoteFrames : petFrames;
@@ -168,6 +306,32 @@ export default function Home() {
   }, [petAnimation]);
 
   useEffect(() => {
+    if (!isAuthMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!authMenuRef.current?.contains(event.target as Node)) {
+        setIsAuthMenuOpen(false);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsAuthMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isAuthMenuOpen]);
+
+  useEffect(() => {
     if (isNoteOpen) {
       const focusTimeout = window.setTimeout(() => {
         noteInputRef.current?.focus();
@@ -180,17 +344,27 @@ export default function Home() {
   }, [isNoteOpen]);
 
   useEffect(() => {
+    let reactionTimeout: number | null = null;
+
     if (hadNoteOpenRef.current && !isNoteOpen) {
       noteButtonRef.current?.focus();
 
       if (pendingNoteReactionRef.current) {
         pendingNoteReactionRef.current = false;
-        setPetAnimation("note");
-        setCurrentFrame(0);
+        reactionTimeout = window.setTimeout(() => {
+          setPetAnimation("note");
+          setCurrentFrame(0);
+        }, 0);
       }
     }
 
     hadNoteOpenRef.current = isNoteOpen;
+
+    return () => {
+      if (reactionTimeout !== null) {
+        window.clearTimeout(reactionTimeout);
+      }
+    };
   }, [isNoteOpen]);
 
   useEffect(() => {
@@ -209,24 +383,108 @@ export default function Home() {
   }, [isNoteOpen]);
 
   const previewNotes = useMemo(() => notesState.notes.slice(0, 4), [notesState.notes]);
-  const isSaveDisabled = draft.trim().length === 0;
+  const isSaveDisabled =
+    draft.trim().length === 0 ||
+    !currentUser ||
+    !activeSpaceId ||
+    notesStatus === "saving" ||
+    notesStatus === "loading";
 
-  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+  const handleEmailSignIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const trimmed = draft.trim();
-    if (!trimmed) {
+    if (!supabase) {
+      setAuthStatus("setup-required");
+      setAuthMessage("Add your Supabase URL and anon key to connect sign-in.");
       return;
     }
 
-    dispatch({
-      type: "add",
-      note: {
-        id: crypto.randomUUID(),
-        text: trimmed,
-        createdAt: new Date().toISOString(),
+    const trimmedEmail = email.trim();
+    if (!trimmedEmail) {
+      setAuthStatus("error");
+      setAuthMessage("Enter an email address first.");
+      return;
+    }
+
+    setAuthStatus("sending-link");
+    setAuthMessage(null);
+
+    const { error } = await supabase.auth.signInWithOtp({
+      email: trimmedEmail,
+      options: {
+        emailRedirectTo: window.location.origin,
       },
     });
+
+    if (error) {
+      setAuthStatus("error");
+      setAuthMessage(error.message);
+      return;
+    }
+
+    setAuthStatus("idle");
+    setAuthMessage("Check your email for the magic link, then come back here.");
+  };
+
+  const handleSignOut = async () => {
+    if (!supabase) {
+      return;
+    }
+
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      setAuthStatus("error");
+      setAuthMessage(error.message);
+      return;
+    }
+
+    setActiveSpaceId(null);
+    setCurrentUser(null);
+    dispatch({ type: "reset" });
+    setNotesStatus("idle");
+    setNotesMessage(null);
+    setAuthStatus("idle");
+    setAuthMessage(null);
+    setIsAuthMenuOpen(false);
+  };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const trimmed = draft.trim();
+    if (!trimmed || !supabase || !currentUser || !activeSpaceId) {
+      if (!currentUser || !activeSpaceId) {
+        setNotesStatus("error");
+        setNotesMessage("Sign in first to post a note to the shared space.");
+      }
+      return;
+    }
+
+    setNotesStatus("saving");
+    setNotesMessage(null);
+
+    const optimisticNote = {
+      id: crypto.randomUUID(),
+      text: trimmed,
+      createdAt: new Date().toISOString(),
+    };
+    dispatch({ type: "add", note: optimisticNote });
+
+    const { error } = await supabase.from("notes").insert({
+      space_id: activeSpaceId,
+      author_user_id: currentUser.id,
+      content: trimmed,
+    });
+
+    if (error) {
+      const result = await fetchNotesForSpace(activeSpaceId);
+      dispatch({ type: "hydrate", notes: result.notes ?? [] });
+      setNotesStatus("error");
+      setNotesMessage(error.message);
+      return;
+    }
+
+    setNotesStatus("ready");
     pendingNoteReactionRef.current = true;
     setDraft("");
     setIsNoteOpen(true);
@@ -249,26 +507,99 @@ export default function Home() {
           />
 
           <header className={styles.topBar}>
-            <button
-              ref={noteButtonRef}
-              type="button"
-              className={styles.noteFab}
-              onClick={() => setIsNoteOpen((open) => !open)}
-              aria-expanded={isNoteOpen}
-              aria-controls="notes-panel"
-              aria-label={isNoteOpen ? "Close notes" : "Open notes"}
-            >
-              <div className={styles.noteFabMask}>
-                <Image
-                  src="/art/ui/Note%20icon.webp"
-                  alt=""
-                  width={24}
-                  height={24}
-                  unoptimized
-                  className={styles.noteIcon}
-                />
+            <div className={styles.menuGroup}>
+              <div ref={authMenuRef} className={styles.authMenuWrap}>
+                <button
+                  type="button"
+                  className={styles.authToggle}
+                  onClick={() => setIsAuthMenuOpen((open) => !open)}
+                  aria-expanded={isAuthMenuOpen}
+                  aria-haspopup="menu"
+                  aria-controls="auth-menu"
+                >
+                  {currentUser ? "Account" : "Login"}
+                </button>
+
+                {isAuthMenuOpen ? (
+                  <section id="auth-menu" className={styles.authPanel} aria-label="Sign in submenu">
+                    <p className={styles.authEyebrow}>Shared space</p>
+                    {currentUser ? (
+                      <>
+                        <p className={styles.authTitle}>{currentUser.email}</p>
+                        <p className={styles.authMeta}>
+                          {activeSpaceId
+                            ? `Connected to space ${shortId(activeSpaceId)}`
+                            : "Syncing space..."}
+                        </p>
+                        <button type="button" className={styles.authButton} onClick={handleSignOut}>
+                          Sign out
+                        </button>
+                      </>
+                    ) : (
+                      <form className={styles.authForm} onSubmit={handleEmailSignIn}>
+                        <label className={styles.authLabel} htmlFor="email-input">
+                          Enter your email to join the default space.
+                        </label>
+                        <input
+                          id="email-input"
+                          type="email"
+                          value={email}
+                          onChange={(event) => setEmail(event.target.value)}
+                          className={styles.authInput}
+                          placeholder="you@example.com"
+                          autoComplete="email"
+                        />
+                        <button
+                          type="submit"
+                          className={styles.authButton}
+                          disabled={authStatus === "sending-link" || authStatus === "syncing-space"}
+                        >
+                          {authStatus === "sending-link" ? "Sending..." : "Email me a link"}
+                        </button>
+                      </form>
+                    )}
+
+                    {authMessage ? (
+                      <p
+                        className={`${styles.authMessage} ${
+                          authStatus === "error" ? styles.authMessageError : ""
+                        }`}
+                      >
+                        {authMessage}
+                      </p>
+                    ) : null}
+
+                    {authStatus === "setup-required" ? (
+                      <p className={`${styles.authMessage} ${styles.authMessageError}`}>
+                        Supabase is not configured yet. Add `NEXT_PUBLIC_SUPABASE_URL` and
+                        `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+                      </p>
+                    ) : null}
+                  </section>
+                ) : null}
               </div>
-            </button>
+
+              <button
+                ref={noteButtonRef}
+                type="button"
+                className={styles.noteFab}
+                onClick={() => setIsNoteOpen((open) => !open)}
+                aria-expanded={isNoteOpen}
+                aria-controls="notes-panel"
+                aria-label={isNoteOpen ? "Close notes" : "Open notes"}
+              >
+                <div className={styles.noteFabMask}>
+                  <Image
+                    src="/art/ui/Note%20icon.webp"
+                    alt=""
+                    width={24}
+                    height={24}
+                    unoptimized
+                    className={styles.noteIcon}
+                  />
+                </div>
+              </button>
+            </div>
           </header>
 
           <div className={styles.petStage}>
@@ -315,10 +646,15 @@ export default function Home() {
               </header>
 
               <div className={styles.noteBoard}>
-                {notesState.hasHydrated && previewNotes.length === 0 ? (
+                {notesStatus === "loading" && !notesState.hasHydrated ? (
+                  <div className={styles.emptyBoard}>
+                    <p>Loading shared notes...</p>
+                    <span>Notes from everyone in this space will appear here.</span>
+                  </div>
+                ) : notesState.hasHydrated && previewNotes.length === 0 ? (
                   <div className={styles.emptyBoard}>
                     <p>No notes yet.</p>
-                    <span>Your newest notes will gather here.</span>
+                    <span>The first note in this space will show up here.</span>
                   </div>
                 ) : (
                   previewNotes.map((note, index) => (
@@ -357,9 +693,18 @@ export default function Home() {
                     placeholder="Write a little note..."
                   />
                   <button type="submit" className={styles.saveButton} disabled={isSaveDisabled}>
-                    Save
+                    {notesStatus === "saving" ? "Saving..." : "Save"}
                   </button>
                 </div>
+                {notesMessage ? (
+                  <p
+                    className={`${styles.noteStatus} ${
+                      notesStatus === "error" ? styles.noteStatusError : ""
+                    }`}
+                  >
+                    {notesMessage}
+                  </p>
+                ) : null}
               </form>
             </div>
           </section>
@@ -377,6 +722,82 @@ function getCardStyle(layout: CardLayout): CSSProperties {
     "--card-width": layout.width,
     "--card-padding": layout.padding,
   } as CSSProperties;
+}
+
+async function ensureDefaultSpaceMembership(userId: string) {
+  if (!supabase) {
+    return { error: "Supabase is not configured.", spaceId: null, spaceName: null };
+  }
+
+  const { data: spaces, error: spaceError } = await supabase
+    .from("spaces")
+    .select("id, name")
+    .order("created_at", { ascending: true })
+    .limit(1);
+
+  if (spaceError) {
+    return { error: spaceError.message, spaceId: null, spaceName: null };
+  }
+
+  const defaultSpace = spaces?.[0];
+  if (!defaultSpace) {
+    return { error: "No default space exists in Supabase yet.", spaceId: null, spaceName: null };
+  }
+
+  const { data: existingMembership, error: membershipLookupError } = await supabase
+    .from("space_members")
+    .select("id")
+    .eq("space_id", defaultSpace.id)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (membershipLookupError) {
+    return { error: membershipLookupError.message, spaceId: null, spaceName: null };
+  }
+
+  if (!existingMembership) {
+    const { error: insertError } = await supabase.from("space_members").insert({
+      space_id: defaultSpace.id,
+      user_id: userId,
+      role: "member",
+    });
+
+    if (insertError) {
+      return { error: insertError.message, spaceId: null, spaceName: null };
+    }
+  }
+
+  return { error: null, spaceId: defaultSpace.id, spaceName: defaultSpace.name };
+}
+
+async function fetchNotesForSpace(spaceId: string) {
+  if (!supabase) {
+    return { error: "Supabase is not configured.", notes: [] as NoteItem[] };
+  }
+
+  const { data, error } = await supabase
+    .from("notes")
+    .select("id, content, created_at")
+    .eq("space_id", spaceId)
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (error) {
+    return { error: error.message, notes: [] as NoteItem[] };
+  }
+
+  return {
+    error: null,
+    notes: (data ?? []).map((item) => ({
+      id: item.id,
+      text: item.content,
+      createdAt: item.created_at,
+    })),
+  };
+}
+
+function shortId(value: string) {
+  return value.slice(0, 8);
 }
 
 function formatShortDate(date: string) {
