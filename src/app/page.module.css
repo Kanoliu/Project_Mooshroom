@@ -58,6 +58,52 @@
   gap: 12px;
 }
 
+.stageToggle {
+  position: absolute;
+  top: 86px;
+  left: 18px;
+  z-index: 2;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: min(240px, calc(100% - 36px));
+}
+
+.stageButton {
+  min-width: 42px;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(247, 242, 232, 0.94);
+  box-shadow:
+    0 10px 18px rgba(58, 38, 25, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  color: rgba(83, 49, 29, 0.8);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 140ms ease,
+    background-color 140ms ease,
+    color 140ms ease;
+}
+
+.stageButton:hover {
+  transform: translateY(-1px);
+}
+
+.stageButtonActive {
+  background: rgba(141, 96, 66, 0.96);
+  color: #fff7ef;
+}
+
+.stageButton:focus-visible {
+  outline: 2px solid rgba(132, 86, 54, 0.8);
+  outline-offset: 2px;
+}
+
 .authMenuWrap {
   position: relative;
 }
@@ -234,6 +280,12 @@
   transform: translateX(-50%);
 }
 
+.petStagePreview {
+  width: 330px;
+  height: 340px;
+  bottom: 4%;
+}
+
 .petGlow {
   position: absolute;
   inset: auto 18px 18px;
@@ -245,13 +297,22 @@
   filter: blur(14px);
 }
 
-.petWrap {
+.petButton {
   position: relative;
   width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
   isolation: isolate;
+  cursor: pointer;
 }
 
-.petWrap::after {
+.petButtonStagePreview {
+  transform: translateY(30%) scale(1.6);
+  transform-origin: center bottom;
+}
+
+.petButton::after {
   content: "";
   position: absolute;
   inset: 10% 14% 12%;
@@ -260,6 +321,12 @@
   mix-blend-mode: multiply;
   opacity: 0.8;
   pointer-events: none;
+}
+
+.petButton:focus-visible {
+  outline: 2px solid rgba(132, 86, 54, 0.8);
+  outline-offset: 6px;
+  border-radius: 28px;
 }
 
 .pet {
@@ -549,6 +616,25 @@
     width: 220px;
     height: 230px;
     bottom: 10%;
+  }
+
+  .petStagePreview {
+    width: 260px;
+    height: 270px;
+    bottom: 6%;
+  }
+
+  .stageToggle {
+    top: 78px;
+    gap: 6px;
+    width: min(220px, calc(100% - 28px));
+  }
+
+  .stageButton {
+    min-width: 38px;
+    min-height: 34px;
+    padding: 0 12px;
+    font-size: 0.78rem;
   }
 
   .notesPanel {

@@ -39,9 +39,18 @@ type CardLayout = {
   padding: string;
 };
 
-type PetAnimation = "idle" | "note";
+type PetStageId = "stage0" | "stage1" | "stage2" | "stage3" | "pet";
+type PetAnimation = "idle" | "note" | "petreact";
 type AuthStatus = "setup-required" | "idle" | "sending-link" | "syncing-space" | "ready" | "error";
 type NotesStatus = "idle" | "loading" | "saving" | "ready" | "error";
+
+const petStageOptions: Array<{ id: PetStageId; label: string }> = [
+  { id: "stage0", label: "0" },
+  { id: "stage1", label: "1" },
+  { id: "stage2", label: "2" },
+  { id: "stage3", label: "3" },
+  { id: "pet", label: "Pet" },
+];
 
 const petFrames = Array.from({ length: 60 }, (_, index) => {
   const frameNumber = String(index + 1).padStart(4, "0");
@@ -52,6 +61,28 @@ const petNoteFrames = [
   ...Array.from({ length: 30 }, (_, index) => index + 15),
   ...Array.from({ length: 16 }, (_, index) => index + 46),
 ].map((frameNumber) => `/art/pets/note/frame_${String(frameNumber).padStart(4, "0")}.webp`);
+
+const petReactFrames = Array.from({ length: 32 }, (_, index) => {
+  const frameNumber = String(index + 1).padStart(4, "0");
+  return `/art/pets/petreact/frame_${frameNumber}.webp`;
+});
+
+const petStageFrames: Record<PetStageId, string[]> = {
+  stage0: ["/art/pets/stage0/stage0.webp"],
+  stage1: Array.from({ length: 28 }, (_, index) => {
+    const frameNumber = String(index + 1).padStart(4, "0");
+    return `/art/pets/stage1/frame_${frameNumber}.webp`;
+  }),
+  stage2: Array.from({ length: 32 }, (_, index) => {
+    const frameNumber = String(index + 1).padStart(4, "0");
+    return `/art/pets/stage2/frame_${frameNumber}.webp`;
+  }),
+  stage3: Array.from({ length: 52 }, (_, index) => {
+    const frameNumber = String(index + 1).padStart(4, "0");
+    return `/art/pets/stage3/frame_${frameNumber}.webp`;
+  }),
+  pet: petFrames,
+};
 
 const cardLayouts: CardLayout[] = [
   {
@@ -113,6 +144,7 @@ function notesReducer(state: NotesState, action: NotesAction): NotesState {
 export default function Home() {
   const [isNoteOpen, setIsNoteOpen] = useState(false);
   const [isAuthMenuOpen, setIsAuthMenuOpen] = useState(false);
+  const [selectedPetStage, setSelectedPetStage] = useState<PetStageId>("pet");
   const [draft, setDraft] = useState("");
   const [email, setEmail] = useState("");
   const [currentFrame, setCurrentFrame] = useState(0);
@@ -235,6 +267,7 @@ export default function Home() {
     }
 
     let isMounted = true;
+    const supabaseClient = supabase;
 
     const loadNotes = async () => {
       setNotesStatus("loading");
@@ -259,7 +292,7 @@ export default function Home() {
 
     void loadNotes();
 
-    const channel = supabase
+    const channel = supabaseClient
       .channel(`notes:${activeSpaceId}`)
       .on(
         "postgres_changes",
@@ -280,15 +313,25 @@ export default function Home() {
         window.clearTimeout(statusTimeout);
       }
       isMounted = false;
-      void supabase.removeChannel(channel);
+      void supabaseClient.removeChannel(channel);
     };
   }, [activeSpaceId, currentUser]);
 
   useEffect(() => {
-    const activeFrames = petAnimation === "note" ? petNoteFrames : petFrames;
+    const isPreviewStage = selectedPetStage !== "pet";
+    const activeFrames =
+      !isPreviewStage
+        ? petAnimation === "note"
+          ? petNoteFrames
+          : petAnimation === "petreact"
+            ? petReactFrames
+            : petFrames
+        : petStageFrames[selectedPetStage];
+    const frameDuration = isPreviewStage ? 70 : 100;
+
     const interval = window.setInterval(() => {
       setCurrentFrame((frame) => {
-        if (petAnimation === "note") {
+        if (!isPreviewStage && petAnimation !== "idle") {
           if (frame >= activeFrames.length - 1) {
             window.setTimeout(() => {
               setPetAnimation("idle");
@@ -300,10 +343,19 @@ export default function Home() {
 
         return (frame + 1) % activeFrames.length;
       });
-    }, 100);
+    }, frameDuration);
 
     return () => window.clearInterval(interval);
-  }, [petAnimation]);
+  }, [petAnimation, selectedPetStage]);
+
+  const handlePetTap = () => {
+    if (selectedPetStage !== "pet") {
+      return;
+    }
+
+    setCurrentFrame(0);
+    setPetAnimation("petreact");
+  };
 
   useEffect(() => {
     if (!isAuthMenuOpen) {
@@ -352,8 +404,10 @@ export default function Home() {
       if (pendingNoteReactionRef.current) {
         pendingNoteReactionRef.current = false;
         reactionTimeout = window.setTimeout(() => {
-          setPetAnimation("note");
-          setCurrentFrame(0);
+          if (selectedPetStage === "pet") {
+            setPetAnimation("note");
+            setCurrentFrame(0);
+          }
         }, 0);
       }
     }
@@ -365,7 +419,7 @@ export default function Home() {
         window.clearTimeout(reactionTimeout);
       }
     };
-  }, [isNoteOpen]);
+  }, [isNoteOpen, selectedPetStage]);
 
   useEffect(() => {
     if (!isNoteOpen) {
@@ -490,7 +544,14 @@ export default function Home() {
     setIsNoteOpen(true);
   };
 
-  const activePetFrames = petAnimation === "note" ? petNoteFrames : petFrames;
+  const activePetFrames =
+    selectedPetStage === "pet"
+      ? petAnimation === "note"
+        ? petNoteFrames
+        : petAnimation === "petreact"
+          ? petReactFrames
+          : petFrames
+      : petStageFrames[selectedPetStage];
 
   return (
     <main className={styles.page}>
@@ -602,9 +663,40 @@ export default function Home() {
             </div>
           </header>
 
-          <div className={styles.petStage}>
+          <section className={styles.stageToggle} aria-label="Pet stage selector">
+            {petStageOptions.map((option) => (
+              <button
+                key={option.id}
+                type="button"
+                className={`${styles.stageButton} ${
+                  selectedPetStage === option.id ? styles.stageButtonActive : ""
+                }`}
+                onClick={() => {
+                  setSelectedPetStage(option.id);
+                  setPetAnimation("idle");
+                  setCurrentFrame(0);
+                }}
+                aria-pressed={selectedPetStage === option.id}
+              >
+                {option.label}
+              </button>
+            ))}
+          </section>
+
+          <div
+            className={`${styles.petStage} ${
+              selectedPetStage !== "pet" ? styles.petStagePreview : ""
+            }`}
+          >
             <div className={styles.petGlow} />
-            <div className={styles.petWrap}>
+            <button
+              type="button"
+              className={`${styles.petButton} ${
+                selectedPetStage !== "pet" ? styles.petButtonStagePreview : ""
+              }`}
+              onClick={handlePetTap}
+              aria-label="Pet Mooshroom"
+            >
               <Image
                 src={activePetFrames[currentFrame]}
                 alt="Mooshroom pet character."
@@ -613,7 +705,7 @@ export default function Home() {
                 unoptimized
                 className={styles.pet}
               />
-            </div>
+            </button>
           </div>
 
           <section

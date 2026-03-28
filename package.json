@@ -3,11 +3,10 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "powershell -ExecutionPolicy Bypass -Command \"& { $root = Split-Path -Parent $env:npm_package_json; node (Join-Path $root 'node_modules\\next\\dist\\bin\\next') dev }\"",
-    "build": "powershell -ExecutionPolicy Bypass -Command \"& { $root = Split-Path -Parent $env:npm_package_json; node (Join-Path $root 'node_modules\\next\\dist\\bin\\next') build }\"",
-    "start": "powershell -ExecutionPolicy Bypass -Command \"& { $root = Split-Path -Parent $env:npm_package_json; node (Join-Path $root 'node_modules\\next\\dist\\bin\\next') start }\"",
-    "lint": "powershell -ExecutionPolicy Bypass -Command \"& { $root = Split-Path -Parent $env:npm_package_json; node (Join-Path $root 'node_modules\\eslint\\bin\\eslint.js') . }\"",
-    "sync:art": "powershell -ExecutionPolicy Bypass -Command \"& { $root = Split-Path -Parent $env:npm_package_json; & (Join-Path $root 'scripts\\sync-art.ps1') }\""
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.100.1",
