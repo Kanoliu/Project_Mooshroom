@@ -6,6 +6,7 @@ import {
   type CSSProperties,
   type FormEvent,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useReducer,
   useRef,
@@ -165,6 +166,7 @@ export default function Home() {
   const noteButtonRef = useRef<HTMLButtonElement>(null);
   const noteInputRef = useRef<HTMLTextAreaElement>(null);
   const authMenuRef = useRef<HTMLDivElement>(null);
+  const animationFrameRef = useRef<number | null>(null);
   const hadNoteOpenRef = useRef(false);
   const pendingNoteReactionRef = useRef(false);
 
@@ -318,6 +320,21 @@ export default function Home() {
   }, [activeSpaceId, currentUser]);
 
   useEffect(() => {
+    const framesToPreload = new Set([
+      ...petFrames,
+      ...petNoteFrames,
+      ...petReactFrames,
+      ...petStageFrames[selectedPetStage],
+    ]);
+
+    framesToPreload.forEach((src) => {
+      const image = new window.Image();
+      image.decoding = "async";
+      image.src = src;
+    });
+  }, [selectedPetStage]);
+
+  useLayoutEffect(() => {
     const isPreviewStage = selectedPetStage !== "pet";
     const activeFrames =
       !isPreviewStage
@@ -328,24 +345,35 @@ export default function Home() {
             : petFrames
         : petStageFrames[selectedPetStage];
     const frameDuration = isPreviewStage ? 70 : 100;
+    let lastFrameTime = performance.now();
 
-    const interval = window.setInterval(() => {
-      setCurrentFrame((frame) => {
-        if (!isPreviewStage && petAnimation !== "idle") {
-          if (frame >= activeFrames.length - 1) {
+    const tick = (timestamp: number) => {
+      if (timestamp - lastFrameTime >= frameDuration) {
+        lastFrameTime = timestamp;
+
+        setCurrentFrame((frame) => {
+          if (!isPreviewStage && petAnimation !== "idle" && frame >= activeFrames.length - 1) {
             window.setTimeout(() => {
               setPetAnimation("idle");
               setCurrentFrame(0);
             }, 0);
             return frame;
           }
-        }
 
-        return (frame + 1) % activeFrames.length;
-      });
-    }, frameDuration);
+          return (frame + 1) % activeFrames.length;
+        });
+      }
 
-    return () => window.clearInterval(interval);
+      animationFrameRef.current = window.requestAnimationFrame(tick);
+    };
+
+    animationFrameRef.current = window.requestAnimationFrame(tick);
+
+    return () => {
+      if (animationFrameRef.current !== null) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+      }
+    };
   }, [petAnimation, selectedPetStage]);
 
   const handlePetTap = () => {
@@ -697,13 +725,16 @@ export default function Home() {
               onClick={handlePetTap}
               aria-label="Pet Mooshroom"
             >
-              <Image
+              <img
                 src={activePetFrames[currentFrame]}
                 alt="Mooshroom pet character."
+                className={styles.pet}
                 width={220}
                 height={220}
-                unoptimized
-                className={styles.pet}
+                loading="eager"
+                fetchPriority="high"
+                decoding="sync"
+                draggable={false}
               />
             </button>
           </div>

@@ -305,6 +305,8 @@
   background: transparent;
   isolation: isolate;
   cursor: pointer;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .petButtonStagePreview {
@@ -334,7 +336,11 @@
   z-index: 1;
   width: 100%;
   height: auto;
+  display: block;
   object-fit: contain;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  will-change: contents;
   filter:
     sepia(0.08)
     saturate(0.92)
