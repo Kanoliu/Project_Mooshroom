@@ -10,6 +10,10 @@ const assetMappings = [
   { from: path.join(sourceDir, "pets"), to: path.join(targetDir, "pets") },
   { from: path.join(sourceDir, "ui"), to: path.join(targetDir, "ui") },
   {
+    from: path.join(sourceDir, "pets", "Mushroom_stage1_nobg_webp"),
+    to: path.join(targetDir, "pets", "stage1"),
+  },
+  {
     from: path.join(sourceDir, "Preprocess", "Pet_Idle_nobg_webp"),
     to: path.join(targetDir, "pets", "idle"),
   },

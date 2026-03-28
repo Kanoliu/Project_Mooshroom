@@ -5,6 +5,7 @@ import type { User } from "@supabase/supabase-js";
 import {
   type CSSProperties,
   type FormEvent,
+  type PointerEvent as ReactPointerEvent,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -19,6 +20,13 @@ type NoteItem = {
   id: string;
   text: string;
   createdAt: string;
+};
+
+type PetStatusValue = "0" | "1" | "2" | "3" | "pet";
+
+type PetState = {
+  status: PetStatusValue;
+  nutrition: number;
 };
 
 type NotesState = {
@@ -40,8 +48,15 @@ type CardLayout = {
   padding: string;
 };
 
+type UiDockSlot = {
+  id: string;
+  label: string;
+  icon: string | null;
+  action: "settings" | "note" | "pending" | "empty";
+};
+
 type PetStageId = "stage0" | "stage1" | "stage2" | "stage3" | "pet";
-type PetAnimation = "idle" | "note" | "petreact";
+type PetAnimation = "idle" | "note" | "petreact" | "eat";
 type AuthStatus = "setup-required" | "idle" | "sending-link" | "syncing-space" | "ready" | "error";
 type NotesStatus = "idle" | "loading" | "saving" | "ready" | "error";
 
@@ -66,6 +81,16 @@ const petNoteFrames = [
 const petReactFrames = Array.from({ length: 32 }, (_, index) => {
   const frameNumber = String(index + 1).padStart(4, "0");
   return `/art/pets/petreact/frame_${frameNumber}.webp`;
+});
+
+const petEatFrames = Array.from({ length: 50 }, (_, index) => {
+  const frameNumber = String(index + 1).padStart(4, "0");
+  return `/art/pets/eat/frame_${frameNumber}.webp`;
+});
+
+const stage3PetReactFrames = Array.from({ length: 60 }, (_, index) => {
+  const frameNumber = String(index + 1).padStart(4, "0");
+  return `/art/pets/stage3-petreact/frame_${frameNumber}.webp`;
 });
 
 const petStageFrames: Record<PetStageId, string[]> = {
@@ -120,6 +145,15 @@ const cardLayouts: CardLayout[] = [
   },
 ];
 
+const topUiSlots: UiDockSlot[] = [
+  { id: "empty-left-1", label: "Empty slot", icon: null, action: "empty" },
+  { id: "empty-left-2", label: "Empty slot", icon: null, action: "empty" },
+  { id: "note", label: "Notes", icon: "/art/ui/Note.webp", action: "note" },
+  { id: "calender", label: "Calendar", icon: "/art/ui/Calender.webp", action: "pending" },
+  { id: "backpack", label: "Backpack", icon: "/art/ui/Backpack.webp", action: "pending" },
+  { id: "setting", label: "Settings", icon: "/art/ui/Setting.webp", action: "settings" },
+];
+
 function notesReducer(state: NotesState, action: NotesAction): NotesState {
   switch (action.type) {
     case "hydrate":
@@ -145,11 +179,17 @@ function notesReducer(state: NotesState, action: NotesAction): NotesState {
 export default function Home() {
   const [isNoteOpen, setIsNoteOpen] = useState(false);
   const [isAuthMenuOpen, setIsAuthMenuOpen] = useState(false);
-  const [selectedPetStage, setSelectedPetStage] = useState<PetStageId>("pet");
+  const [selectedPetStage, setSelectedPetStage] = useState<PetStageId>("stage0");
+  const [isFoodDragging, setIsFoodDragging] = useState(false);
+  const [foodOffset, setFoodOffset] = useState({ x: 0, y: 0 });
   const [draft, setDraft] = useState("");
   const [email, setEmail] = useState("");
   const [currentFrame, setCurrentFrame] = useState(0);
   const [petAnimation, setPetAnimation] = useState<PetAnimation>("idle");
+  const [petState, setPetState] = useState<PetState>({
+    status: "0",
+    nutrition: 0,
+  });
   const [authStatus, setAuthStatus] = useState<AuthStatus>(
     supabase ? "idle" : "setup-required",
   );
@@ -166,9 +206,18 @@ export default function Home() {
   const noteButtonRef = useRef<HTMLButtonElement>(null);
   const noteInputRef = useRef<HTMLTextAreaElement>(null);
   const authMenuRef = useRef<HTMLDivElement>(null);
+  const foodButtonRef = useRef<HTMLButtonElement>(null);
+  const petButtonRef = useRef<HTMLButtonElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const hadNoteOpenRef = useRef(false);
   const pendingNoteReactionRef = useRef(false);
+  const foodDragRef = useRef<{
+    pointerId: number;
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+  } | null>(null);
 
   useEffect(() => {
     if (!supabase) {
@@ -320,10 +369,46 @@ export default function Home() {
   }, [activeSpaceId, currentUser]);
 
   useEffect(() => {
+    if (!supabase) {
+      setPetState({ status: "0", nutrition: 0 });
+      setSelectedPetStage("stage0");
+      return;
+    }
+
+    if (!activeSpaceId) {
+      setPetState({ status: "0", nutrition: 0 });
+      setSelectedPetStage("stage0");
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadPetState = async () => {
+      const result = await ensurePetStateForSpace(activeSpaceId);
+      if (!isMounted || result.error || !result.petState) {
+        return;
+      }
+
+      setPetState(result.petState);
+      setSelectedPetStage(getStageFromStatus(result.petState.status));
+      setPetAnimation("idle");
+      setCurrentFrame(0);
+    };
+
+    void loadPetState();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [activeSpaceId]);
+
+  useEffect(() => {
     const framesToPreload = new Set([
       ...petFrames,
       ...petNoteFrames,
       ...petReactFrames,
+      ...petEatFrames,
+      ...(selectedPetStage === "stage3" ? stage3PetReactFrames : []),
       ...petStageFrames[selectedPetStage],
     ]);
 
@@ -336,13 +421,19 @@ export default function Home() {
 
   useLayoutEffect(() => {
     const isPreviewStage = selectedPetStage !== "pet";
+    const shouldPlayOnce =
+      petAnimation !== "idle" && (!isPreviewStage || selectedPetStage === "stage3");
     const activeFrames =
       !isPreviewStage
         ? petAnimation === "note"
           ? petNoteFrames
+          : petAnimation === "eat"
+            ? petEatFrames
           : petAnimation === "petreact"
             ? petReactFrames
             : petFrames
+        : selectedPetStage === "stage3" && petAnimation === "petreact"
+          ? stage3PetReactFrames
         : petStageFrames[selectedPetStage];
     const frameDuration = isPreviewStage ? 70 : 100;
     let lastFrameTime = performance.now();
@@ -352,7 +443,7 @@ export default function Home() {
         lastFrameTime = timestamp;
 
         setCurrentFrame((frame) => {
-          if (!isPreviewStage && petAnimation !== "idle" && frame >= activeFrames.length - 1) {
+          if (shouldPlayOnce && frame >= activeFrames.length - 1) {
             window.setTimeout(() => {
               setPetAnimation("idle");
               setCurrentFrame(0);
@@ -377,12 +468,21 @@ export default function Home() {
   }, [petAnimation, selectedPetStage]);
 
   const handlePetTap = () => {
-    if (selectedPetStage !== "pet") {
+    if (selectedPetStage !== "pet" && selectedPetStage !== "stage3") {
       return;
     }
 
     setCurrentFrame(0);
     setPetAnimation("petreact");
+  };
+
+  const triggerPetEat = () => {
+    if (selectedPetStage !== "pet") {
+      return;
+    }
+
+    setCurrentFrame(0);
+    setPetAnimation("eat");
   };
 
   useEffect(() => {
@@ -572,14 +672,95 @@ export default function Home() {
     setIsNoteOpen(true);
   };
 
+  const handleFoodPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    setIsFoodDragging(true);
+    foodDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: foodOffset.x,
+      originY: foodOffset.y,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleFoodPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const dragState = foodDragRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    setFoodOffset({
+      x: dragState.originX + (event.clientX - dragState.startX),
+      y: dragState.originY + (event.clientY - dragState.startY),
+    });
+  };
+
+  const finishFoodDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const foodRect = foodButtonRef.current?.getBoundingClientRect();
+    const petRect = petButtonRef.current?.getBoundingClientRect();
+    const isDroppedOnPet =
+      selectedPetStage === "pet" &&
+      foodRect &&
+      petRect &&
+      rectanglesOverlap(foodRect, petRect);
+
+    if (foodDragRef.current?.pointerId === event.pointerId) {
+      foodDragRef.current = null;
+    }
+
+    setIsFoodDragging(false);
+    setFoodOffset({ x: 0, y: 0 });
+
+    if (isDroppedOnPet) {
+      triggerPetEat();
+      void feedPet();
+    }
+
+    if (foodButtonRef.current?.hasPointerCapture(event.pointerId)) {
+      foodButtonRef.current.releasePointerCapture(event.pointerId);
+    }
+  };
+
   const activePetFrames =
     selectedPetStage === "pet"
       ? petAnimation === "note"
         ? petNoteFrames
+        : petAnimation === "eat"
+          ? petEatFrames
         : petAnimation === "petreact"
           ? petReactFrames
           : petFrames
+      : selectedPetStage === "stage3" && petAnimation === "petreact"
+        ? stage3PetReactFrames
       : petStageFrames[selectedPetStage];
+
+  const feedPet = async () => {
+    if (!supabase || !activeSpaceId) {
+      return;
+    }
+
+    const nextNutrition = petState.nutrition + 1;
+    const nextStatus = getStatusFromNutrition(nextNutrition);
+    const { error } = await supabase
+      .from("pet_state")
+      .update({
+        Nutrition: nextNutrition,
+        Status: nextStatus,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("space_id", activeSpaceId);
+
+    if (error) {
+      return;
+    }
+
+    setPetState({
+      nutrition: nextNutrition,
+      status: nextStatus,
+    });
+    setSelectedPetStage(getStageFromStatus(nextStatus));
+  };
 
   return (
     <main className={styles.page}>
@@ -595,121 +776,218 @@ export default function Home() {
             sizes="(max-width: 768px) 100vw, 520px"
           />
 
-          <header className={styles.topBar}>
-            <div className={styles.menuGroup}>
-              <div ref={authMenuRef} className={styles.authMenuWrap}>
-                <button
-                  type="button"
-                  className={styles.authToggle}
-                  onClick={() => setIsAuthMenuOpen((open) => !open)}
-                  aria-expanded={isAuthMenuOpen}
-                  aria-haspopup="menu"
-                  aria-controls="auth-menu"
-                >
-                  {currentUser ? "Account" : "Login"}
-                </button>
+          <section className={styles.topDock} aria-label="Top user interface">
+            {topUiSlots.map((slot) => (
+              <div key={slot.id} className={styles.topDockSlot}>
+                <Image
+                  src="/art/ui/UI%20frame.webp"
+                  alt=""
+                  fill
+                  unoptimized
+                  className={styles.uiFrameArt}
+                />
 
-                {isAuthMenuOpen ? (
-                  <section id="auth-menu" className={styles.authPanel} aria-label="Sign in submenu">
-                    <p className={styles.authEyebrow}>Shared space</p>
-                    {currentUser ? (
-                      <>
-                        <p className={styles.authTitle}>{currentUser.email}</p>
-                        <p className={styles.authMeta}>
-                          {activeSpaceId
-                            ? `Connected to space ${shortId(activeSpaceId)}`
-                            : "Syncing space..."}
-                        </p>
-                        <button type="button" className={styles.authButton} onClick={handleSignOut}>
-                          Sign out
-                        </button>
-                      </>
-                    ) : (
-                      <form className={styles.authForm} onSubmit={handleEmailSignIn}>
-                        <label className={styles.authLabel} htmlFor="email-input">
-                          Enter your email to join the default space.
-                        </label>
-                        <input
-                          id="email-input"
-                          type="email"
-                          value={email}
-                          onChange={(event) => setEmail(event.target.value)}
-                          className={styles.authInput}
-                          placeholder="you@example.com"
-                          autoComplete="email"
-                        />
-                        <button
-                          type="submit"
-                          className={styles.authButton}
-                          disabled={authStatus === "sending-link" || authStatus === "syncing-space"}
-                        >
-                          {authStatus === "sending-link" ? "Sending..." : "Email me a link"}
-                        </button>
-                      </form>
-                    )}
+                {slot.action === "settings" ? (
+                  <div ref={authMenuRef} className={styles.authMenuWrap}>
+                    <button
+                      type="button"
+                      className={styles.frameAction}
+                      onClick={() => setIsAuthMenuOpen((open) => !open)}
+                      aria-expanded={isAuthMenuOpen}
+                      aria-haspopup="menu"
+                      aria-controls="auth-menu"
+                      aria-label="Open settings"
+                    >
+                      <Image
+                        src={slot.icon ?? "/art/ui/Setting.webp"}
+                        alt=""
+                        width={46}
+                        height={46}
+                        unoptimized
+                        className={styles.frameIcon}
+                      />
+                    </button>
 
-                    {authMessage ? (
-                      <p
-                        className={`${styles.authMessage} ${
-                          authStatus === "error" ? styles.authMessageError : ""
-                        }`}
-                      >
-                        {authMessage}
-                      </p>
+                    {isAuthMenuOpen ? (
+                      <section id="auth-menu" className={styles.authPanel} aria-label="Settings panel">
+                        <p className={styles.authEyebrow}>Shared space</p>
+                        {currentUser ? (
+                          <>
+                            <p className={styles.authTitle}>{currentUser.email}</p>
+                            <p className={styles.authMeta}>
+                              {activeSpaceId
+                                ? `Connected to space ${shortId(activeSpaceId)}`
+                                : "Syncing space..."}
+                            </p>
+                            <button
+                              type="button"
+                              className={styles.authButton}
+                              onClick={handleSignOut}
+                            >
+                              Sign out
+                            </button>
+                          </>
+                        ) : (
+                          <form className={styles.authForm} onSubmit={handleEmailSignIn}>
+                            <label className={styles.authLabel} htmlFor="email-input">
+                              Enter your email to join the default space.
+                            </label>
+                            <input
+                              id="email-input"
+                              type="email"
+                              value={email}
+                              onChange={(event) => setEmail(event.target.value)}
+                              className={styles.authInput}
+                              placeholder="you@example.com"
+                              autoComplete="email"
+                            />
+                            <button
+                              type="submit"
+                              className={styles.authButton}
+                              disabled={
+                                authStatus === "sending-link" || authStatus === "syncing-space"
+                              }
+                            >
+                              {authStatus === "sending-link" ? "Sending..." : "Email me a link"}
+                            </button>
+                          </form>
+                        )}
+
+                        {authMessage ? (
+                          <p
+                            className={`${styles.authMessage} ${
+                              authStatus === "error" ? styles.authMessageError : ""
+                            }`}
+                          >
+                            {authMessage}
+                          </p>
+                        ) : null}
+
+                        {authStatus === "setup-required" ? (
+                          <p className={`${styles.authMessage} ${styles.authMessageError}`}>
+                            Supabase is not configured yet. Add `NEXT_PUBLIC_SUPABASE_URL` and
+                            `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+                          </p>
+                        ) : null}
+
+                        <div className={styles.settingsDivider} />
+
+                        <div className={styles.stagePanel}>
+                          <p className={styles.authEyebrow}>Pet stage</p>
+                          <section className={styles.stageToggle} aria-label="Pet stage selector">
+                            {petStageOptions.map((option) => (
+                              <button
+                                key={option.id}
+                                type="button"
+                                className={`${styles.stageButton} ${
+                                  selectedPetStage === option.id ? styles.stageButtonActive : ""
+                                }`}
+                                onClick={() => {
+                                  setSelectedPetStage(option.id);
+                                  setPetAnimation("idle");
+                                  setCurrentFrame(0);
+                                }}
+                                aria-pressed={selectedPetStage === option.id}
+                              >
+                                {option.label}
+                              </button>
+                            ))}
+                          </section>
+                          <p className={styles.authMeta}>
+                            Status {petState.status} · Nutrition {petState.nutrition}
+                          </p>
+                        </div>
+                      </section>
                     ) : null}
-
-                    {authStatus === "setup-required" ? (
-                      <p className={`${styles.authMessage} ${styles.authMessageError}`}>
-                        Supabase is not configured yet. Add `NEXT_PUBLIC_SUPABASE_URL` and
-                        `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
-                      </p>
-                    ) : null}
-                  </section>
-                ) : null}
+                  </div>
+                ) : slot.action === "note" ? (
+                  <button
+                    ref={noteButtonRef}
+                    type="button"
+                    className={styles.frameAction}
+                    onClick={() => setIsNoteOpen((open) => !open)}
+                    aria-expanded={isNoteOpen}
+                    aria-controls="notes-panel"
+                    aria-label={isNoteOpen ? "Close notes" : "Open notes"}
+                  >
+                    <Image
+                      src={slot.icon ?? "/art/ui/Note.webp"}
+                      alt=""
+                      width={46}
+                      height={46}
+                      unoptimized
+                      className={styles.frameIcon}
+                    />
+                  </button>
+                ) : slot.action === "pending" ? (
+                  <button
+                    type="button"
+                    className={`${styles.frameAction} ${styles.frameActionPending}`}
+                    aria-label={`${slot.label} coming soon`}
+                    title={`${slot.label} is not built yet`}
+                  >
+                    <Image
+                      src={slot.icon ?? "/art/ui/Note.webp"}
+                      alt=""
+                      width={46}
+                      height={46}
+                      unoptimized
+                      className={styles.frameIcon}
+                    />
+                  </button>
+                ) : (
+                  <div className={styles.framePlaceholder} aria-hidden="true" />
+                )}
               </div>
-
-              <button
-                ref={noteButtonRef}
-                type="button"
-                className={styles.noteFab}
-                onClick={() => setIsNoteOpen((open) => !open)}
-                aria-expanded={isNoteOpen}
-                aria-controls="notes-panel"
-                aria-label={isNoteOpen ? "Close notes" : "Open notes"}
-              >
-                <div className={styles.noteFabMask}>
-                  <Image
-                    src="/art/ui/Note%20icon.webp"
-                    alt=""
-                    width={24}
-                    height={24}
-                    unoptimized
-                    className={styles.noteIcon}
-                  />
-                </div>
-              </button>
-            </div>
-          </header>
-
-          <section className={styles.stageToggle} aria-label="Pet stage selector">
-            {petStageOptions.map((option) => (
-              <button
-                key={option.id}
-                type="button"
-                className={`${styles.stageButton} ${
-                  selectedPetStage === option.id ? styles.stageButtonActive : ""
-                }`}
-                onClick={() => {
-                  setSelectedPetStage(option.id);
-                  setPetAnimation("idle");
-                  setCurrentFrame(0);
-                }}
-                aria-pressed={selectedPetStage === option.id}
-              >
-                {option.label}
-              </button>
             ))}
           </section>
+
+          <aside className={styles.bottomRightFrames} aria-hidden="true">
+            <div className={styles.largeFrame}>
+              <Image
+                src="/art/ui/UI%20frame.webp"
+                alt=""
+                fill
+                unoptimized
+                className={styles.uiFrameArt}
+              />
+            </div>
+            <div className={styles.largeFrame}>
+              <Image
+                src="/art/ui/UI%20frame.webp"
+                alt=""
+                fill
+                unoptimized
+                className={styles.uiFrameArt}
+              />
+            </div>
+          </aside>
+
+          <button
+            ref={foodButtonRef}
+            type="button"
+            className={styles.foodButton}
+            data-dragging={isFoodDragging ? "true" : "false"}
+            onPointerDown={handleFoodPointerDown}
+            onPointerMove={handleFoodPointerMove}
+            onPointerUp={finishFoodDrag}
+            onPointerCancel={finishFoodDrag}
+            style={
+              {
+                "--food-x": `${foodOffset.x}px`,
+                "--food-y": `${foodOffset.y}px`,
+              } as CSSProperties
+            }
+            aria-label="Drag food"
+          >
+            <Image
+              src="/art/ui/Food.webp"
+              alt=""
+              fill
+              unoptimized
+              className={styles.foodIcon}
+            />
+          </button>
 
           <div
             className={`${styles.petStage} ${
@@ -718,6 +996,7 @@ export default function Home() {
           >
             <div className={styles.petGlow} />
             <button
+              ref={petButtonRef}
               type="button"
               className={`${styles.petButton} ${
                 selectedPetStage !== "pet" ? styles.petButtonStagePreview : ""
@@ -919,6 +1198,94 @@ async function fetchNotesForSpace(spaceId: string) {
   };
 }
 
+async function ensurePetStateForSpace(spaceId: string) {
+  if (!supabase) {
+    return { error: "Supabase is not configured.", petState: null as PetState | null };
+  }
+
+  const { data: existingPetState, error: lookupError } = await supabase
+    .from("pet_state")
+    .select('space_id, "Status", "Nutrition"')
+    .eq("space_id", spaceId)
+    .maybeSingle();
+
+  if (lookupError) {
+    return { error: lookupError.message, petState: null as PetState | null };
+  }
+
+  if (!existingPetState) {
+    const initialPetState = { status: "0" as PetStatusValue, nutrition: 0 };
+    const { error: insertError } = await supabase.from("pet_state").insert({
+      space_id: spaceId,
+      Status: initialPetState.status,
+      Nutrition: initialPetState.nutrition,
+    });
+
+    if (insertError) {
+      return { error: insertError.message, petState: null as PetState | null };
+    }
+
+    return { error: null, petState: initialPetState };
+  }
+
+  const nutrition = Number(existingPetState.Nutrition ?? 0);
+  const derivedStatus = getStatusFromNutrition(nutrition);
+
+  if (existingPetState.Status !== derivedStatus) {
+    const { error: updateError } = await supabase
+      .from("pet_state")
+      .update({
+        Status: derivedStatus,
+        Nutrition: nutrition,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("space_id", spaceId);
+
+    if (updateError) {
+      return { error: updateError.message, petState: null as PetState | null };
+    }
+  }
+
+  return {
+    error: null,
+    petState: {
+      status: derivedStatus,
+      nutrition,
+    },
+  };
+}
+
+function getStatusFromNutrition(nutrition: number): PetStatusValue {
+  if (nutrition > 15) {
+    return "pet";
+  }
+
+  if (nutrition > 10) {
+    return "3";
+  }
+
+  if (nutrition > 5) {
+    return "1";
+  }
+
+  return "0";
+}
+
+function getStageFromStatus(status: PetStatusValue): PetStageId {
+  switch (status) {
+    case "1":
+      return "stage1";
+    case "2":
+      return "stage2";
+    case "3":
+      return "stage3";
+    case "pet":
+      return "pet";
+    default:
+      return "stage0";
+  }
+}
+
 function shortId(value: string) {
   return value.slice(0, 8);
 }
@@ -928,4 +1295,8 @@ function formatShortDate(date: string) {
     day: "numeric",
     month: "short",
   });
+}
+
+function rectanglesOverlap(a: DOMRect, b: DOMRect) {
+  return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
 }

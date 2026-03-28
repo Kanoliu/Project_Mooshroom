@@ -43,30 +43,86 @@
   pointer-events: none;
 }
 
-.topBar {
-  position: relative;
-  z-index: 2;
-  display: flex;
-  justify-content: flex-end;
-  padding: 18px;
+.topDock {
+  position: absolute;
+  top: 65px;
+  left: 18px;
+  right: 18px;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  align-items: start;
+  transform: scale(0.8);
+  transform-origin: top center;
 }
 
-.menuGroup {
+.topDockSlot {
   position: relative;
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
+  aspect-ratio: 219 / 215;
+  filter: drop-shadow(0 12px 18px rgba(65, 45, 32, 0.18));
+}
+
+.uiFrameArt {
+  object-fit: contain;
+  object-position: center;
+}
+
+.frameAction,
+.framePlaceholder {
+  position: absolute;
+  inset: 0%;
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 28px;
+  background: transparent;
+}
+
+.frameAction {
+  cursor: pointer;
+}
+
+.frameActionPending {
+  cursor: default;
+}
+
+.frameActionPending .frameIcon {
+  opacity: 0.85;
+}
+
+.framePlaceholder {
+  pointer-events: none;
+}
+
+.frameIcon {
+  width: 85%;
+  height: 85%;
+  object-fit: contain;
+}
+
+.bottomRightFrames {
+  position: absolute;
+  right: 16px;
+  bottom: 24px;
+  z-index: 2;
+  display: grid;
+  gap: 10px;
+}
+
+.largeFrame {
+  position: relative;
+  width: 67px;
+  aspect-ratio: 219 / 215;
+  filter: drop-shadow(0 14px 22px rgba(65, 45, 32, 0.18));
 }
 
 .stageToggle {
-  position: absolute;
-  top: 86px;
-  left: 18px;
-  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-  width: min(240px, calc(100% - 36px));
 }
 
 .stageButton {
@@ -106,29 +162,15 @@
 
 .authMenuWrap {
   position: relative;
-}
-
-.authToggle {
-  min-height: 52px;
-  padding: 0 18px;
-  border: 0;
-  border-radius: 18px;
-  background: rgba(247, 242, 232, 0.96);
-  box-shadow:
-    0 12px 22px rgba(58, 38, 25, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.65);
-  color: #53311d;
-  font: inherit;
-  font-size: 0.92rem;
-  font-weight: 700;
-  cursor: pointer;
+  width: 100%;
+  height: 100%;
 }
 
 .authPanel {
   position: absolute;
-  top: calc(100% + 10px);
+  top: calc(100% + 8px);
   right: 0;
-  width: min(300px, calc(100vw - 48px));
+  width: min(320px, calc(100vw - 48px));
   padding: 14px 16px;
   border-radius: 22px;
   background: rgba(255, 250, 241, 0.9);
@@ -136,6 +178,17 @@
     0 18px 28px rgba(70, 45, 28, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.72);
   color: #53311d;
+}
+
+.settingsDivider {
+  margin: 12px 0;
+  height: 1px;
+  background: rgba(131, 92, 62, 0.18);
+}
+
+.stagePanel {
+  display: grid;
+  gap: 8px;
 }
 
 .authEyebrow {
@@ -215,57 +268,19 @@
   color: #9a2f2f;
 }
 
-.noteFab {
-  position: relative;
-  width: 84px;
-  aspect-ratio: 1;
-  border: 0;
-  background: transparent;
-  cursor: pointer;
-  border-radius: 24px;
-}
-
-.noteFabMask {
-  position: absolute;
-  inset: 5%;
-  overflow: hidden;
-  border-radius: 24px;
-  background: rgba(247, 242, 232, 0.96);
-  box-shadow:
-    0 12px 22px rgba(58, 38, 25, 0.14),
-    inset 0 1px 0 rgba(255, 255, 255, 0.65);
-}
-
-.noteFab::after {
-  content: "";
-  position: absolute;
-  inset: 12px;
-  border-radius: 18px;
-  background: rgba(87, 60, 41, 0.16);
-  filter: blur(9px);
-  z-index: -1;
-}
-
-.noteFab:hover {
+.frameAction:hover {
   transform: translateY(-1px);
 }
 
-.noteFab:focus-visible,
+.frameAction:focus-visible,
 .panelClose:focus-visible,
 .saveButton:focus-visible,
-.authToggle:focus-visible,
 .noteInput:focus-visible,
 .authInput:focus-visible,
-.authButton:focus-visible {
+.authButton:focus-visible,
+.foodButton:focus-visible {
   outline: 2px solid rgba(141, 95, 54, 0.8);
   outline-offset: 2px;
-}
-
-.noteIcon {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  transform: scale(1.11);
 }
 
 .petStage {
@@ -384,6 +399,41 @@
   grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 8px;
   color: #000;
+}
+
+.foodButton {
+  --food-x: 0px;
+  --food-y: 0px;
+  position: absolute;
+  right: 6px;
+  bottom: 14px;
+  z-index: 4;
+  width: 90px;
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+  transform: translate(var(--food-x), var(--food-y));
+  transition: transform 180ms ease;
+}
+
+.foodButton[data-dragging="true"] {
+  transition: none;
+}
+
+.foodButton:hover {
+  transform: translate(var(--food-x), var(--food-y)) translateY(-1px);
+}
+
+.foodButton:active {
+  cursor: grabbing;
+}
+
+.foodIcon {
+  object-fit: contain;
+  transform: scale(0.88);
 }
 
 .panelHeader {
@@ -575,18 +625,11 @@
     border-radius: 24px;
   }
 
-  .topBar {
-    padding: 14px;
-  }
-
-  .menuGroup {
-    gap: 10px;
-  }
-
-  .authToggle {
-    min-height: 48px;
-    padding: 0 16px;
-    font-size: 0.86rem;
+  .topDock {
+    top: 26px;
+    left: 14px;
+    right: 14px;
+    gap: 6px;
   }
 
   .authPanel {
@@ -610,12 +653,13 @@
     font-size: 0.86rem;
   }
 
-  .noteFab {
-    width: 74px;
+  .largeFrame {
+    width: 56px;
   }
 
-  .noteFabMask {
-    border-radius: 20px;
+  .frameAction,
+  .framePlaceholder {
+    inset: 8%;
   }
 
   .petStage {
@@ -628,12 +672,6 @@
     width: 260px;
     height: 270px;
     bottom: 6%;
-  }
-
-  .stageToggle {
-    top: 78px;
-    gap: 6px;
-    width: min(220px, calc(100% - 28px));
   }
 
   .stageButton {
@@ -700,5 +738,11 @@
 
   .noteStatus {
     font-size: 0.72rem;
+  }
+
+  .foodButton {
+    right: 0;
+    bottom: 8px;
+    width: 74px;
   }
 }

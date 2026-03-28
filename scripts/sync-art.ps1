@@ -9,6 +9,10 @@ $assetMappings = @(
   @{ From = (Join-Path $sourceDir "pets"); To = (Join-Path $targetDir "pets") }
   @{ From = (Join-Path $sourceDir "ui"); To = (Join-Path $targetDir "ui") }
   @{
+    From = (Join-Path $sourceDir "pets\Mushroom_stage1_nobg_webp")
+    To = (Join-Path $targetDir "pets\stage1")
+  }
+  @{
     From = (Join-Path $sourceDir "Preprocess\Pet_Idle_nobg_webp")
     To = (Join-Path $targetDir "pets\idle")
   }
