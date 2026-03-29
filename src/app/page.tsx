@@ -56,8 +56,16 @@ type UiDockSlot = {
   action: "settings" | "note" | "calendar" | "pending" | "empty";
 };
 
+type DragState = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  originX: number;
+  originY: number;
+};
+
 type PetStageId = "stage0" | "stage1" | "stage2" | "stage3" | "pet";
-type PetAnimation = "idle" | "note" | "petreact" | "eat";
+type PetAnimation = "idle" | "note" | "petreact" | "eat" | "water" | "dig";
 type AuthStatus = "setup-required" | "idle" | "sending-link" | "syncing-space" | "ready" | "error";
 type NotesStatus = "idle" | "loading" | "saving" | "ready" | "error";
 
@@ -89,6 +97,16 @@ const petEatFrames = Array.from({ length: 50 }, (_, index) => {
   return `/art/pets/eat/frame_${frameNumber}.webp`;
 });
 
+const petWaterFrames = Array.from({ length: 51 }, (_, index) => {
+  const frameNumber = String(index + 1).padStart(4, "0");
+  return `/art/pets/water/frame_${frameNumber}.webp`;
+});
+
+const petDigFrames = Array.from({ length: 60 }, (_, index) => {
+  const frameNumber = String(index + 1).padStart(4, "0");
+  return `/art/pets/dig/frame_${frameNumber}.webp`;
+});
+
 const stage3PetReactFrames = Array.from({ length: 60 }, (_, index) => {
   const frameNumber = String(index + 1).padStart(4, "0");
   return `/art/pets/stage3-petreact/frame_${frameNumber}.webp`;
@@ -110,6 +128,34 @@ const petStageFrames: Record<PetStageId, string[]> = {
   }),
   pet: petFrames,
 };
+
+function getActivePetFrames(
+  selectedPetStage: PetStageId,
+  petAnimation: PetAnimation,
+) {
+  if (selectedPetStage === "pet") {
+    switch (petAnimation) {
+      case "note":
+        return petNoteFrames;
+      case "eat":
+        return petEatFrames;
+      case "petreact":
+        return petReactFrames;
+      case "water":
+        return petWaterFrames;
+      case "dig":
+        return petDigFrames;
+      default:
+        return petFrames;
+    }
+  }
+
+  if (selectedPetStage === "stage3" && petAnimation === "petreact") {
+    return stage3PetReactFrames;
+  }
+
+  return petStageFrames[selectedPetStage];
+}
 
 const cardLayouts: CardLayout[] = [
   {
@@ -187,7 +233,9 @@ export default function Home() {
   });
   const [selectedPetStage, setSelectedPetStage] = useState<PetStageId>("stage0");
   const [isFoodDragging, setIsFoodDragging] = useState(false);
+  const [isKettleDragging, setIsKettleDragging] = useState(false);
   const [foodOffset, setFoodOffset] = useState({ x: 0, y: 0 });
+  const [kettleOffset, setKettleOffset] = useState({ x: 0, y: 0 });
   const [draft, setDraft] = useState("");
   const [email, setEmail] = useState("");
   const [currentFrame, setCurrentFrame] = useState(0);
@@ -213,17 +261,13 @@ export default function Home() {
   const noteInputRef = useRef<HTMLTextAreaElement>(null);
   const authMenuRef = useRef<HTMLDivElement>(null);
   const foodButtonRef = useRef<HTMLButtonElement>(null);
+  const kettleButtonRef = useRef<HTMLButtonElement>(null);
   const petButtonRef = useRef<HTMLButtonElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const hadNoteOpenRef = useRef(false);
   const pendingNoteReactionRef = useRef(false);
-  const foodDragRef = useRef<{
-    pointerId: number;
-    startX: number;
-    startY: number;
-    originX: number;
-    originY: number;
-  } | null>(null);
+  const foodDragRef = useRef<DragState | null>(null);
+  const kettleDragRef = useRef<DragState | null>(null);
 
   const resetWindowViewport = () => {
     window.setTimeout(() => {
@@ -455,6 +499,8 @@ export default function Home() {
       ...petNoteFrames,
       ...petReactFrames,
       ...petEatFrames,
+      ...petWaterFrames,
+      ...petDigFrames,
       ...(selectedPetStage === "stage3" ? stage3PetReactFrames : []),
       ...petStageFrames[selectedPetStage],
     ]);
@@ -470,18 +516,7 @@ export default function Home() {
     const isPreviewStage = selectedPetStage !== "pet";
     const shouldPlayOnce =
       petAnimation !== "idle" && (!isPreviewStage || selectedPetStage === "stage3");
-    const activeFrames =
-      !isPreviewStage
-        ? petAnimation === "note"
-          ? petNoteFrames
-          : petAnimation === "eat"
-            ? petEatFrames
-          : petAnimation === "petreact"
-            ? petReactFrames
-            : petFrames
-        : selectedPetStage === "stage3" && petAnimation === "petreact"
-          ? stage3PetReactFrames
-        : petStageFrames[selectedPetStage];
+    const activeFrames = getActivePetFrames(selectedPetStage, petAnimation);
     const frameDuration = isPreviewStage ? 70 : 100;
     let lastFrameTime = performance.now();
 
@@ -530,6 +565,15 @@ export default function Home() {
 
     setCurrentFrame(0);
     setPetAnimation("eat");
+  };
+
+  const triggerPetWater = () => {
+    if (selectedPetStage !== "pet") {
+      return;
+    }
+
+    setCurrentFrame(0);
+    setPetAnimation("water");
   };
 
   useEffect(() => {
@@ -763,6 +807,30 @@ export default function Home() {
     });
   };
 
+  const handleKettlePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    setIsKettleDragging(true);
+    kettleDragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: kettleOffset.x,
+      originY: kettleOffset.y,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleKettlePointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const dragState = kettleDragRef.current;
+    if (!dragState || dragState.pointerId !== event.pointerId) {
+      return;
+    }
+
+    setKettleOffset({
+      x: dragState.originX + (event.clientX - dragState.startX),
+      y: dragState.originY + (event.clientY - dragState.startY),
+    });
+  };
+
   const finishFoodDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const foodRect = foodButtonRef.current?.getBoundingClientRect();
     const petRect = petButtonRef.current?.getBoundingClientRect();
@@ -789,18 +857,32 @@ export default function Home() {
     }
   };
 
-  const activePetFrames =
-    selectedPetStage === "pet"
-      ? petAnimation === "note"
-        ? petNoteFrames
-        : petAnimation === "eat"
-          ? petEatFrames
-        : petAnimation === "petreact"
-          ? petReactFrames
-          : petFrames
-      : selectedPetStage === "stage3" && petAnimation === "petreact"
-        ? stage3PetReactFrames
-      : petStageFrames[selectedPetStage];
+  const finishKettleDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const kettleRect = kettleButtonRef.current?.getBoundingClientRect();
+    const petRect = petButtonRef.current?.getBoundingClientRect();
+    const isDroppedOnPet =
+      selectedPetStage === "pet" &&
+      kettleRect &&
+      petRect &&
+      rectanglesOverlap(kettleRect, petRect);
+
+    if (kettleDragRef.current?.pointerId === event.pointerId) {
+      kettleDragRef.current = null;
+    }
+
+    setIsKettleDragging(false);
+    setKettleOffset({ x: 0, y: 0 });
+
+    if (kettleButtonRef.current?.hasPointerCapture(event.pointerId)) {
+      kettleButtonRef.current.releasePointerCapture(event.pointerId);
+    }
+
+    if (isDroppedOnPet) {
+      triggerPetWater();
+    }
+  };
+
+  const activePetFrames = getActivePetFrames(selectedPetStage, petAnimation);
 
   const feedPet = async () => {
     if (!supabase || !activeSpaceId) {
@@ -1031,8 +1113,8 @@ export default function Home() {
             ))}
           </section>
 
-          <aside className={styles.bottomRightFrames} aria-hidden="true">
-            <div className={styles.largeFrame}>
+          <aside className={styles.bottomRightFrames} aria-label="Pet tools">
+            <div className={styles.resourceFrame}>
               <Image
                 src="/art/ui/UI%20frame.webp"
                 alt=""
@@ -1040,8 +1122,33 @@ export default function Home() {
                 unoptimized
                 className={styles.uiFrameArt}
               />
+              <button
+                ref={kettleButtonRef}
+                type="button"
+                className={styles.resourceButton}
+                data-dragging={isKettleDragging ? "true" : "false"}
+                onPointerDown={handleKettlePointerDown}
+                onPointerMove={handleKettlePointerMove}
+                onPointerUp={finishKettleDrag}
+                onPointerCancel={finishKettleDrag}
+                style={
+                  {
+                    "--drag-x": `${kettleOffset.x}px`,
+                    "--drag-y": `${kettleOffset.y}px`,
+                  } as CSSProperties
+                }
+                aria-label="Drag kettle"
+              >
+                <Image
+                  src="/art/ui/Kettle.webp"
+                  alt=""
+                  fill
+                  unoptimized
+                  className={styles.resourceIcon}
+                />
+              </button>
             </div>
-            <div className={styles.largeFrame}>
+            <div className={styles.resourceFrame}>
               <Image
                 src="/art/ui/UI%20frame.webp"
                 alt=""
@@ -1049,34 +1156,33 @@ export default function Home() {
                 unoptimized
                 className={styles.uiFrameArt}
               />
+              <button
+                ref={foodButtonRef}
+                type="button"
+                className={styles.resourceButton}
+                data-dragging={isFoodDragging ? "true" : "false"}
+                onPointerDown={handleFoodPointerDown}
+                onPointerMove={handleFoodPointerMove}
+                onPointerUp={finishFoodDrag}
+                onPointerCancel={finishFoodDrag}
+                style={
+                  {
+                    "--drag-x": `${foodOffset.x}px`,
+                    "--drag-y": `${foodOffset.y}px`,
+                  } as CSSProperties
+                }
+                aria-label="Drag food"
+              >
+                <Image
+                  src="/art/ui/Food.webp"
+                  alt=""
+                  fill
+                  unoptimized
+                  className={styles.resourceIcon}
+                />
+              </button>
             </div>
           </aside>
-
-          <button
-            ref={foodButtonRef}
-            type="button"
-            className={styles.foodButton}
-            data-dragging={isFoodDragging ? "true" : "false"}
-            onPointerDown={handleFoodPointerDown}
-            onPointerMove={handleFoodPointerMove}
-            onPointerUp={finishFoodDrag}
-            onPointerCancel={finishFoodDrag}
-            style={
-              {
-                "--food-x": `${foodOffset.x}px`,
-                "--food-y": `${foodOffset.y}px`,
-              } as CSSProperties
-            }
-            aria-label="Drag food"
-          >
-            <Image
-              src="/art/ui/Food.webp"
-              alt=""
-              fill
-              unoptimized
-              className={styles.foodIcon}
-            />
-          </button>
 
           <div
             className={`${styles.petStage} ${

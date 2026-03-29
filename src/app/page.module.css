@@ -115,10 +115,10 @@
   z-index: 8;
   display: grid;
   gap: 10px;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
-.largeFrame {
+.resourceFrame {
   position: relative;
   width: 67px;
   aspect-ratio: 219 / 215;
@@ -284,7 +284,7 @@
 .noteInput:focus-visible,
 .authInput:focus-visible,
 .authButton:focus-visible,
-.foodButton:focus-visible {
+.resourceButton:focus-visible {
   outline: 2px solid rgba(141, 95, 54, 0.8);
   outline-offset: 2px;
 }
@@ -428,37 +428,34 @@
   color: #000;
 }
 
-.foodButton {
-  --food-x: 0px;
-  --food-y: 0px;
+.resourceButton {
+  --drag-x: 0px;
+  --drag-y: 0px;
   position: absolute;
-  right: max(6px, env(safe-area-inset-right, 0px));
-  bottom: max(14px, env(safe-area-inset-bottom, 0px));
-  z-index: 10;
-  width: 90px;
-  aspect-ratio: 1;
+  inset: 0;
+  padding: 12% 12% 16%;
   border: 0;
-  border-radius: 50%;
+  border-radius: 24px;
   background: transparent;
   cursor: grab;
   touch-action: none;
-  transform: translate(var(--food-x), var(--food-y));
+  transform: translate(var(--drag-x), var(--drag-y));
   transition: transform 180ms ease;
 }
 
-.foodButton[data-dragging="true"] {
+.resourceButton[data-dragging="true"] {
   transition: none;
 }
 
-.foodButton:hover {
-  transform: translate(var(--food-x), var(--food-y)) translateY(-1px);
+.resourceButton:hover {
+  transform: translate(var(--drag-x), var(--drag-y)) translateY(-1px);
 }
 
-.foodButton:active {
+.resourceButton:active {
   cursor: grabbing;
 }
 
-.foodIcon {
+.resourceIcon {
   object-fit: contain;
   transform: scale(0.88);
 }
@@ -684,7 +681,7 @@
     font-size: 0.86rem;
   }
 
-  .largeFrame {
+  .resourceFrame {
     width: 56px;
   }
 
@@ -786,9 +783,7 @@
     font-size: 0.72rem;
   }
 
-  .foodButton {
-    right: max(2px, env(safe-area-inset-right, 0px));
-    bottom: max(8px, env(safe-area-inset-bottom, 0px));
-    width: 78px;
+  .resourceIcon {
+    transform: scale(0.84);
   }
 }
