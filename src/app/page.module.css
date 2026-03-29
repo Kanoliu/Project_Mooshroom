@@ -20,7 +20,7 @@
   --pet-scene-tint: rgba(192, 184, 155, 0.24);
   --pet-shadow: rgba(91, 69, 55, 0.24);
   position: relative;
-  min-height: min(92vh, 980px);
+  min-height: min(var(--app-height, 92vh), 980px);
   overflow: hidden;
   border-radius: 32px;
   border: 2px solid rgba(130, 94, 65, 0.55);
@@ -48,7 +48,7 @@
   top: 65px;
   left: 18px;
   right: 18px;
-  z-index: 5;
+  z-index: 8;
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: 10px;
@@ -60,6 +60,8 @@
 .topDockSlot {
   position: relative;
   aspect-ratio: 219 / 215;
+  display: grid;
+  place-items: center;
   filter: drop-shadow(0 12px 18px rgba(65, 45, 32, 0.18));
 }
 
@@ -83,6 +85,7 @@
 
 .frameAction {
   cursor: pointer;
+  padding: 12% 13% 15%;
 }
 
 .frameActionPending {
@@ -98,18 +101,21 @@
 }
 
 .frameIcon {
-  width: 85%;
-  height: 85%;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
+  object-position: center;
+  display: block;
 }
 
 .bottomRightFrames {
   position: absolute;
   right: 16px;
   bottom: 24px;
-  z-index: 2;
+  z-index: 8;
   display: grid;
   gap: 10px;
+  pointer-events: none;
 }
 
 .largeFrame {
@@ -287,7 +293,7 @@
   position: absolute;
   left: 50%;
   bottom: 8%;
-  z-index: 2;
+  z-index: 3;
   display: grid;
   place-items: center;
   width: 280px;
@@ -367,8 +373,8 @@
 .notesPanel {
   position: absolute;
   left: 50%;
-  bottom: 0;
-  z-index: 4;
+  bottom: max(env(safe-area-inset-bottom, 0px), 0px);
+  z-index: 9;
   width: min(152%, 96vh);
   max-width: 710px;
   aspect-ratio: 1;
@@ -378,6 +384,27 @@
   transition:
     transform 240ms ease,
     opacity 240ms ease;
+}
+
+.calendarPanel {
+  position: absolute;
+  left: 50%;
+  bottom: max(env(safe-area-inset-bottom, 0px), 0px);
+  z-index: 9;
+  width: min(122%, 76vh);
+  max-width: 560px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, calc(100% + 20px));
+  transition:
+    transform 240ms ease,
+    opacity 240ms ease;
+}
+
+.calendarPanelOpen {
+  transform: translate(-50%, -20px);
+  opacity: 1;
+  pointer-events: auto;
 }
 
 .notesPanelOpen {
@@ -405,9 +432,9 @@
   --food-x: 0px;
   --food-y: 0px;
   position: absolute;
-  right: 6px;
-  bottom: 14px;
-  z-index: 4;
+  right: max(6px, env(safe-area-inset-right, 0px));
+  bottom: max(14px, env(safe-area-inset-bottom, 0px));
+  z-index: 10;
   width: 90px;
   aspect-ratio: 1;
   border: 0;
@@ -449,8 +476,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 42px;
-  min-height: 42px;
+  min-width: 48px;
+  min-height: 48px;
   padding: 0;
   border: 0;
   border-radius: 999px;
@@ -536,14 +563,14 @@
 
 .noteComposer {
   display: grid;
-  gap: 5;
-  padding: 0 0.9rem 0.8rem;
+  gap: 8px;
+  padding: 0 0.9rem calc(0.8rem + env(safe-area-inset-bottom, 0px));
 }
 
 .composerSurface {
   display: grid;
-  gap: 8px;
-  padding: 34px 0 0;
+  gap: 12px;
+  padding: 28px 0 0;
   justify-items: stretch;
   width: 100%;
   max-width: 100%;
@@ -551,23 +578,25 @@
 }
 
 .noteInput {
-  width: 80%;
-  max-width: 80%;
-  min-height: 96px;
-  max-height: 116px;
+  width: 88%;
+  max-width: 88%;
+  min-height: 112px;
+  max-height: 144px;
   resize: none;
   border: 0;
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-  padding: 4px 8px;
+  border-radius: 18px;
+  background: rgba(255, 249, 240, 0.72);
+  box-shadow: inset 0 0 0 1px rgba(120, 78, 50, 0.12);
+  padding: 14px 16px;
   font: inherit;
-  font-size: 0.92rem;
+  font-size: 0.96rem;
   line-height: 1.45;
   color: #000;
   box-sizing: border-box;
-  overflow: hidden;
+  overflow-y: auto;
   justify-self: center;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
 .noteInput::placeholder {
@@ -579,13 +608,15 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 96px;
-  min-height: 42px;
-  padding: 0 14px;
+  min-width: 116px;
+  min-height: 48px;
+  padding: 0 20px;
   border: 0;
   border-radius: 999px;
-  background: transparent;
-  box-shadow: none;
+  background: rgba(127, 82, 50, 0.14);
+  box-shadow:
+    0 10px 18px rgba(74, 49, 33, 0.14),
+    inset 0 0 0 1px rgba(111, 71, 45, 0.1);
   color: #000;
   font: inherit;
   font-size: 0.98rem;
@@ -621,7 +652,7 @@
   }
 
   .scene {
-    min-height: calc(100vh - 24px);
+    min-height: calc(var(--app-height, 100dvh) - 24px);
     border-radius: 24px;
   }
 
@@ -659,18 +690,23 @@
 
   .frameAction,
   .framePlaceholder {
-    inset: 8%;
+    inset: 0;
+  }
+
+  .frameAction {
+    padding: 13% 12% 16%;
   }
 
   .petStage {
-    width: 220px;
+    left: calc(50% - 20px);
+    width: min(220px, calc(100% - 154px));
     height: 230px;
     bottom: 10%;
   }
 
   .petStagePreview {
-    width: 260px;
-    height: 270px;
+    width: min(244px, calc(100% - 144px));
+    height: 250px;
     bottom: 6%;
   }
 
@@ -682,12 +718,17 @@
   }
 
   .notesPanel {
-    width: min(142%, 92vh);
-    bottom: 2px;
+    width: min(146%, 92vh);
+    bottom: max(2px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .calendarPanel {
+    width: min(130%, 80vh);
+    bottom: max(2px, env(safe-area-inset-bottom, 0px));
   }
 
   .notesPanelInner {
-    inset: 11% 19% 16% 19%;
+    inset: 11% 17% calc(16% + var(--keyboard-inset, 0px) * 0.08) 17%;
     gap: 10px;
   }
 
@@ -697,8 +738,8 @@
   }
 
   .panelClose {
-    min-width: 38px;
-    min-height: 38px;
+    min-width: 46px;
+    min-height: 46px;
     font-size: 1.45rem;
   }
 
@@ -711,10 +752,12 @@
   }
 
   .noteInput {
-    min-height: 104px;
-    max-height: 126px;
-    padding: 6px 10px;
-    font-size: 0.92rem;
+    width: 100%;
+    max-width: 100%;
+    min-height: 128px;
+    max-height: 160px;
+    padding: 14px 16px;
+    font-size: 1rem;
     line-height: 1.5;
   }
 
@@ -723,17 +766,20 @@
   }
 
   .composerSurface {
-    padding: 28px 0 0;
+    gap: 14px;
+    padding: 20px 0 0;
   }
 
   .noteComposer {
-    padding: 0 0.7rem 0.7rem;
+    padding: 0 0.7rem calc(0.9rem + env(safe-area-inset-bottom, 0px));
   }
 
   .saveButton {
-    min-width: 82px;
-    min-height: 38px;
-    font-size: 0.92rem;
+    justify-self: stretch;
+    width: 100%;
+    min-width: 0;
+    min-height: 50px;
+    font-size: 0.98rem;
   }
 
   .noteStatus {
@@ -741,8 +787,8 @@
   }
 
   .foodButton {
-    right: 0;
-    bottom: 8px;
-    width: 74px;
+    right: max(2px, env(safe-area-inset-right, 0px));
+    bottom: max(8px, env(safe-area-inset-bottom, 0px));
+    width: 78px;
   }
 }

@@ -13,6 +13,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { MonthCalendar } from "@/components/calendar/month-calendar";
 import { supabase } from "@/lib/supabase";
 import styles from "./page.module.css";
 
@@ -52,7 +53,7 @@ type UiDockSlot = {
   id: string;
   label: string;
   icon: string | null;
-  action: "settings" | "note" | "pending" | "empty";
+  action: "settings" | "note" | "calendar" | "pending" | "empty";
 };
 
 type PetStageId = "stage0" | "stage1" | "stage2" | "stage3" | "pet";
@@ -149,7 +150,7 @@ const topUiSlots: UiDockSlot[] = [
   { id: "empty-left-1", label: "Empty slot", icon: null, action: "empty" },
   { id: "empty-left-2", label: "Empty slot", icon: null, action: "empty" },
   { id: "note", label: "Notes", icon: "/art/ui/Note.webp", action: "note" },
-  { id: "calender", label: "Calendar", icon: "/art/ui/Calender.webp", action: "pending" },
+  { id: "calender", label: "Calendar", icon: "/art/ui/Calender.webp", action: "calendar" },
   { id: "backpack", label: "Backpack", icon: "/art/ui/Backpack.webp", action: "pending" },
   { id: "setting", label: "Settings", icon: "/art/ui/Setting.webp", action: "settings" },
 ];
@@ -178,7 +179,12 @@ function notesReducer(state: NotesState, action: NotesAction): NotesState {
 
 export default function Home() {
   const [isNoteOpen, setIsNoteOpen] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isAuthMenuOpen, setIsAuthMenuOpen] = useState(false);
+  const [calendarViewDate, setCalendarViewDate] = useState(() => {
+    const today = new Date();
+    return new Date(today.getFullYear(), today.getMonth(), 1);
+  });
   const [selectedPetStage, setSelectedPetStage] = useState<PetStageId>("stage0");
   const [isFoodDragging, setIsFoodDragging] = useState(false);
   const [foodOffset, setFoodOffset] = useState({ x: 0, y: 0 });
@@ -218,6 +224,47 @@ export default function Home() {
     originX: number;
     originY: number;
   } | null>(null);
+
+  const resetWindowViewport = () => {
+    window.setTimeout(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    }, 60);
+  };
+
+  useEffect(() => {
+    const root = document.documentElement;
+    const viewport = window.visualViewport;
+
+    const updateViewportMetrics = () => {
+      const viewportHeight = Math.round(viewport?.height ?? window.innerHeight);
+      const keyboardInset = Math.max(
+        0,
+        Math.round(window.innerHeight - (viewport?.height ?? window.innerHeight) - (viewport?.offsetTop ?? 0)),
+      );
+
+      root.style.setProperty("--app-height", `${viewportHeight}px`);
+      root.style.setProperty("--keyboard-inset", `${keyboardInset}px`);
+
+      if (keyboardInset === 0 && document.activeElement !== noteInputRef.current) {
+        resetWindowViewport();
+      }
+    };
+
+    updateViewportMetrics();
+    window.addEventListener("resize", updateViewportMetrics);
+    viewport?.addEventListener("resize", updateViewportMetrics);
+    viewport?.addEventListener("scroll", updateViewportMetrics);
+
+    return () => {
+      window.removeEventListener("resize", updateViewportMetrics);
+      viewport?.removeEventListener("resize", updateViewportMetrics);
+      viewport?.removeEventListener("scroll", updateViewportMetrics);
+      root.style.removeProperty("--app-height");
+      root.style.removeProperty("--keyboard-inset");
+    };
+  }, []);
 
   useEffect(() => {
     if (!supabase) {
@@ -514,11 +561,16 @@ export default function Home() {
   useEffect(() => {
     if (isNoteOpen) {
       const focusTimeout = window.setTimeout(() => {
-        noteInputRef.current?.focus();
+        noteInputRef.current?.focus({ preventScroll: true });
       }, 120);
 
       return () => window.clearTimeout(focusTimeout);
     }
+
+    if (document.activeElement === noteInputRef.current) {
+      noteInputRef.current?.blur();
+    }
+    resetWindowViewport();
 
     return undefined;
   }, [isNoteOpen]);
@@ -563,6 +615,21 @@ export default function Home() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isNoteOpen]);
+
+  useEffect(() => {
+    if (!isCalendarOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsCalendarOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isCalendarOpen]);
 
   const previewNotes = useMemo(() => notesState.notes.slice(0, 4), [notesState.notes]);
   const isSaveDisabled =
@@ -919,6 +986,28 @@ export default function Home() {
                       className={styles.frameIcon}
                     />
                   </button>
+                ) : slot.action === "calendar" ? (
+                  <button
+                    type="button"
+                    className={styles.frameAction}
+                    onClick={() => {
+                      setIsCalendarOpen((open) => !open);
+                      setIsNoteOpen(false);
+                      setIsAuthMenuOpen(false);
+                    }}
+                    aria-expanded={isCalendarOpen}
+                    aria-controls="calendar-panel"
+                    aria-label={isCalendarOpen ? "Close calendar" : "Open calendar"}
+                  >
+                    <Image
+                      src={slot.icon ?? "/art/ui/Calender.webp"}
+                      alt=""
+                      width={46}
+                      height={46}
+                      unoptimized
+                      className={styles.frameIcon}
+                    />
+                  </button>
                 ) : slot.action === "pending" ? (
                   <button
                     type="button"
@@ -1019,6 +1108,23 @@ export default function Home() {
           </div>
 
           <section
+            id="calendar-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Calendar"
+            aria-hidden={!isCalendarOpen}
+            className={`${styles.calendarPanel} ${isCalendarOpen ? styles.calendarPanelOpen : ""}`}
+          >
+            <MonthCalendar
+              year={calendarViewDate.getFullYear()}
+              month={calendarViewDate.getMonth() + 1}
+              onClose={() => setIsCalendarOpen(false)}
+              onPreviousMonth={() => setCalendarViewDate((current) => shiftMonth(current, -1))}
+              onNextMonth={() => setCalendarViewDate((current) => shiftMonth(current, 1))}
+            />
+          </section>
+
+          <section
             id="notes-panel"
             role="dialog"
             aria-modal="true"
@@ -1092,6 +1198,7 @@ export default function Home() {
                     rows={5}
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
+                    onBlur={resetWindowViewport}
                     placeholder="Write a little note..."
                   />
                   <button type="submit" className={styles.saveButton} disabled={isSaveDisabled}>
@@ -1295,6 +1402,10 @@ function formatShortDate(date: string) {
     day: "numeric",
     month: "short",
   });
+}
+
+function shiftMonth(date: Date, offset: number) {
+  return new Date(date.getFullYear(), date.getMonth() + offset, 1);
 }
 
 function rectanglesOverlap(a: DOMRect, b: DOMRect) {

@@ -1,6 +1,13 @@
 import type { Metadata, Viewport } from "next";
+import localFont from "next/font/local";
 import { PwaRegister } from "@/components/pwa-register";
 import "./globals.css";
+
+const vartigo = localFont({
+  src: "../../art-resources/Fonts/Vartigo.ttf",
+  variable: "--font-calendar",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Project Mooshroom",
@@ -25,7 +32,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body>
+      <body className={vartigo.variable}>
         <PwaRegister />
         {children}
       </body>
