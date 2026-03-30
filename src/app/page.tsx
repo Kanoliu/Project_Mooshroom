@@ -1418,34 +1418,31 @@ export default function Home() {
             aria-hidden={!isCalendarOpen}
             className={`${styles.calendarPanel} ${isCalendarOpen ? styles.calendarPanelOpen : ""}`}
           >
-            <div className={styles.calendarPanelContent}>
-              <MonthCalendar
-                year={calendarViewDate.getFullYear()}
-                month={calendarViewDate.getMonth() + 1}
-                selectedDate={selectedCalendarDate}
-                eventCountsByDate={calendarEventCountsByDate}
-                onSelectDate={(isoDate) => setSelectedCalendarDate(isoDate)}
-                onClose={() => setIsCalendarOpen(false)}
-                onPreviousMonth={() => setCalendarViewDate((current) => shiftMonth(current, -1))}
-                onNextMonth={() => setCalendarViewDate((current) => shiftMonth(current, 1))}
-              />
+            <MonthCalendar
+              year={calendarViewDate.getFullYear()}
+              month={calendarViewDate.getMonth() + 1}
+              selectedDate={selectedCalendarDate}
+              eventCountsByDate={calendarEventCountsByDate}
+              onSelectDate={(isoDate) => setSelectedCalendarDate(isoDate)}
+              onClose={() => setIsCalendarOpen(false)}
+              onPreviousMonth={() => setCalendarViewDate((current) => shiftMonth(current, -1))}
+              onNextMonth={() => setCalendarViewDate((current) => shiftMonth(current, 1))}
+              footerContent={
+                <div className={styles.calendarFooterContent}>
+                  <div className={styles.calendarFooterHeading}>
+                    <p className={styles.calendarFooterEyebrow}>Selected day</p>
+                    <h2 className={styles.calendarFooterTitle}>
+                      {formatSelectedCalendarDate(selectedCalendarDate)}
+                    </h2>
+                  </div>
 
-              <section className={styles.calendarAgenda} aria-label="Selected day events">
-                <header className={styles.calendarAgendaHeader}>
-                  <p className={styles.calendarAgendaEyebrow}>Shared events</p>
-                  <h2 className={styles.calendarAgendaTitle}>
-                    {formatSelectedCalendarDate(selectedCalendarDate)}
-                  </h2>
-                </header>
-
-                <form className={styles.calendarEventForm} onSubmit={handleCalendarEventSubmit}>
-                  <div className={styles.calendarEventControls}>
-                    <label className={styles.calendarField}>
-                      <span>Type</span>
+                  <form className={styles.calendarFooterForm} onSubmit={handleCalendarEventSubmit}>
+                    <div className={styles.calendarFooterControls}>
                       <select
                         value={selectedEventType}
                         onChange={(event) => setSelectedEventType(event.target.value as EventType)}
-                        className={styles.calendarSelect}
+                        className={styles.calendarFooterSelect}
+                        aria-label="Event type"
                       >
                         {EVENT_TYPES.map((eventType) => (
                           <option key={eventType} value={eventType}>
@@ -1453,80 +1450,53 @@ export default function Home() {
                           </option>
                         ))}
                       </select>
-                    </label>
 
-                    <label className={styles.calendarField}>
-                      <span>Date</span>
-                      <input
-                        type="date"
-                        value={selectedCalendarDate}
-                        onChange={(event) => {
-                          setSelectedCalendarDate(event.target.value);
-                          const nextDate = new Date(`${event.target.value}T00:00:00`);
-                          if (!Number.isNaN(nextDate.getTime())) {
-                            setCalendarViewDate(
-                              new Date(nextDate.getFullYear(), nextDate.getMonth(), 1),
-                            );
-                          }
-                        }}
-                        className={styles.calendarDateInput}
-                      />
-                    </label>
+                      <button
+                        type="submit"
+                        className={styles.calendarFooterSaveButton}
+                        disabled={isCalendarEventSaveDisabled}
+                      >
+                        {calendarEventsStatus === "saving" ? "Saving..." : "Save"}
+                      </button>
+                    </div>
+
+                    <textarea
+                      ref={calendarEventInputRef}
+                      value={calendarEventDraft}
+                      onChange={(event) => setCalendarEventDraft(event.target.value)}
+                      className={styles.calendarFooterTextarea}
+                      rows={3}
+                      placeholder="Add an event for this day..."
+                    />
+                  </form>
+
+                  <div className={styles.calendarFooterList}>
+                    {calendarEventsStatus === "loading" && !hasHydratedCalendarEvents ? (
+                      <p className={styles.calendarFooterMessage}>Loading shared events...</p>
+                    ) : selectedDateEvents.length === 0 ? (
+                      <p className={styles.calendarFooterMessage}>No events for this day yet.</p>
+                    ) : (
+                      selectedDateEvents.map((item) => (
+                        <article key={item.id} className={styles.calendarFooterItem}>
+                          <span className={styles.calendarFooterItemType}>{item.eventType}</span>
+                          <p className={styles.calendarFooterItemText}>{item.text}</p>
+                        </article>
+                      ))
+                    )}
                   </div>
 
-                  <textarea
-                    ref={calendarEventInputRef}
-                    value={calendarEventDraft}
-                    onChange={(event) => setCalendarEventDraft(event.target.value)}
-                    className={styles.calendarTextarea}
-                    rows={4}
-                    placeholder="Add an event for this day..."
-                  />
-
-                  <button
-                    type="submit"
-                    className={styles.calendarSaveButton}
-                    disabled={isCalendarEventSaveDisabled}
-                  >
-                    {calendarEventsStatus === "saving" ? "Saving..." : "Save event"}
-                  </button>
-                </form>
-
-                <div className={styles.calendarAgendaList}>
-                  {calendarEventsStatus === "loading" && !hasHydratedCalendarEvents ? (
-                    <div className={styles.calendarAgendaEmpty}>
-                      <p>Loading shared events...</p>
-                    </div>
-                  ) : selectedDateEvents.length === 0 ? (
-                    <div className={styles.calendarAgendaEmpty}>
-                      <p>No events for this day yet.</p>
-                    </div>
-                  ) : (
-                    selectedDateEvents.map((item) => (
-                      <article key={item.id} className={styles.calendarAgendaItem}>
-                        <div className={styles.calendarAgendaMeta}>
-                          <span className={styles.calendarAgendaType}>{item.eventType}</span>
-                          <time dateTime={item.createdAt} className={styles.calendarAgendaTime}>
-                            {formatCalendarEventTimestamp(item.createdAt)}
-                          </time>
-                        </div>
-                        <p className={styles.calendarAgendaText}>{item.text}</p>
-                      </article>
-                    ))
-                  )}
+                  {calendarEventsMessage ? (
+                    <p
+                      className={`${styles.calendarFooterStatus} ${
+                        calendarEventsStatus === "error" ? styles.calendarFooterStatusError : ""
+                      }`}
+                    >
+                      {calendarEventsMessage}
+                    </p>
+                  ) : null}
                 </div>
-
-                {calendarEventsMessage ? (
-                  <p
-                    className={`${styles.calendarAgendaStatus} ${
-                      calendarEventsStatus === "error" ? styles.calendarAgendaStatusError : ""
-                    }`}
-                  >
-                    {calendarEventsMessage}
-                  </p>
-                ) : null}
-              </section>
-            </div>
+              }
+            />
           </section>
 
           <section
@@ -1845,15 +1815,6 @@ function formatSelectedCalendarDate(date: string) {
     weekday: "short",
     day: "numeric",
     month: "long",
-  });
-}
-
-function formatCalendarEventTimestamp(date: string) {
-  return new Date(date).toLocaleString("en-GB", {
-    day: "numeric",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
   });
 }
 

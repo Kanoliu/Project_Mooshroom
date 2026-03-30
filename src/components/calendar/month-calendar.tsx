@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import calendarDayCell from "../../../art-resources/ui/Calender/Calender Cell 1.webp";
 import calendarDayCell2 from "../../../art-resources/ui/Calender/Calender Cell 2.webp";
 import calendarDayCell3 from "../../../art-resources/ui/Calender/Calender Cell 3.webp";
@@ -32,6 +32,7 @@ type MonthCalendarProps = {
   selectedDate?: string | null;
   eventCountsByDate?: Record<string, number>;
   onSelectDate?: (isoDate: string) => void;
+  footerContent?: ReactNode;
   onPreviousMonth?: () => void;
   onNextMonth?: () => void;
   onClose?: () => void;
@@ -44,6 +45,7 @@ export function MonthCalendar({
   selectedDate,
   eventCountsByDate,
   onSelectDate,
+  footerContent,
   onPreviousMonth,
   onNextMonth,
   onClose,
@@ -118,8 +120,6 @@ export function MonthCalendar({
     "--calendar-grid-height": "85%",
   } as CSSProperties;
 
-  const summary = `${monthData.daysInMonth} days | ${displayRowCount} rows | Starts on ${monthData.weekdayLabels[monthData.startWeekday]}`;
-
   return (
     <section className={`${styles.calendar} ${className ?? ""}`.trim()} style={style}>
       <Image
@@ -138,8 +138,20 @@ export function MonthCalendar({
       ) : null}
 
       <header className={styles.title} aria-label={calendarLabel}>
-        <span className={styles.titleMonth}>{monthTitle}</span>
-        <span className={styles.titleYear}>{yearTitle}</span>
+        {onPreviousMonth ? (
+          <button type="button" className={styles.titleButton} onClick={onPreviousMonth} aria-label="Previous month">
+            Prev
+          </button>
+        ) : <span className={styles.titleButtonPlaceholder} aria-hidden="true" />}
+        <div className={styles.titleCopy}>
+          <span className={styles.titleMonth}>{monthTitle}</span>
+          <span className={styles.titleYear}>{yearTitle}</span>
+        </div>
+        {onNextMonth ? (
+          <button type="button" className={styles.titleButton} onClick={onNextMonth} aria-label="Next month">
+            Next
+          </button>
+        ) : <span className={styles.titleButtonPlaceholder} aria-hidden="true" />}
       </header>
 
       <div className={styles.body}>
@@ -188,19 +200,7 @@ export function MonthCalendar({
       </div>
 
       <footer className={styles.footer}>
-        <p className={styles.footerSummary}>{summary}</p>
-        <div className={styles.footerControls}>
-          {onPreviousMonth ? (
-            <button type="button" className={styles.footerButton} onClick={onPreviousMonth}>
-              Prev
-            </button>
-          ) : null}
-          {onNextMonth ? (
-            <button type="button" className={styles.footerButton} onClick={onNextMonth}>
-              Next
-            </button>
-          ) : null}
-        </div>
+        {footerContent}
       </footer>
     </section>
   );
