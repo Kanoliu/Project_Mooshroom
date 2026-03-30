@@ -24,6 +24,7 @@ type NoteItem = {
 };
 
 type PetStatusValue = "0" | "1" | "2" | "3" | "pet";
+type EventType = "娱乐" | "办事" | "吃饭" | "随记";
 
 type PetState = {
   status: PetStatusValue;
@@ -33,6 +34,14 @@ type PetState = {
 type NotesState = {
   hasHydrated: boolean;
   notes: NoteItem[];
+};
+
+type CalendarEventItem = {
+  id: string;
+  text: string;
+  eventType: EventType;
+  date: string;
+  createdAt: string;
 };
 
 type NotesAction =
@@ -68,6 +77,11 @@ type PetStageId = "stage0" | "stage1" | "stage2" | "stage3" | "pet";
 type PetAnimation = "idle" | "note" | "petreact" | "eat" | "water" | "dig";
 type AuthStatus = "setup-required" | "idle" | "sending-link" | "syncing-space" | "ready" | "error";
 type NotesStatus = "idle" | "loading" | "saving" | "ready" | "error";
+type CalendarEventsStatus = "idle" | "loading" | "saving" | "ready" | "error";
+
+const EVENT_TYPES: EventType[] = ["娱乐", "办事", "吃饭", "随记"];
+
+const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
 
 const petStageOptions: Array<{ id: PetStageId; label: string }> = [
   { id: "stage0", label: "0" },
@@ -237,6 +251,9 @@ export default function Home() {
   const [foodOffset, setFoodOffset] = useState({ x: 0, y: 0 });
   const [kettleOffset, setKettleOffset] = useState({ x: 0, y: 0 });
   const [draft, setDraft] = useState("");
+  const [calendarEventDraft, setCalendarEventDraft] = useState("");
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState(() => getTodayDateValue());
+  const [selectedEventType, setSelectedEventType] = useState<EventType>("娱乐");
   const [email, setEmail] = useState("");
   const [currentFrame, setCurrentFrame] = useState(0);
   const [petAnimation, setPetAnimation] = useState<PetAnimation>("idle");
@@ -252,6 +269,10 @@ export default function Home() {
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [notesStatus, setNotesStatus] = useState<NotesStatus>("idle");
   const [notesMessage, setNotesMessage] = useState<string | null>(null);
+  const [calendarEventsStatus, setCalendarEventsStatus] = useState<CalendarEventsStatus>("idle");
+  const [calendarEventsMessage, setCalendarEventsMessage] = useState<string | null>(null);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEventItem[]>([]);
+  const [hasHydratedCalendarEvents, setHasHydratedCalendarEvents] = useState(false);
   const [notesState, dispatch] = useReducer(notesReducer, {
     hasHydrated: false,
     notes: [],
@@ -259,6 +280,7 @@ export default function Home() {
 
   const noteButtonRef = useRef<HTMLButtonElement>(null);
   const noteInputRef = useRef<HTMLTextAreaElement>(null);
+  const calendarEventInputRef = useRef<HTMLTextAreaElement>(null);
   const authMenuRef = useRef<HTMLDivElement>(null);
   const foodButtonRef = useRef<HTMLButtonElement>(null);
   const kettleButtonRef = useRef<HTMLButtonElement>(null);
@@ -329,6 +351,10 @@ export default function Home() {
         dispatch({ type: "reset" });
         setNotesStatus("idle");
         setNotesMessage(null);
+        setCalendarEvents([]);
+        setHasHydratedCalendarEvents(false);
+        setCalendarEventsStatus("idle");
+        setCalendarEventsMessage(null);
         setAuthStatus("idle");
         setAuthMessage(null);
         return;
@@ -460,16 +486,106 @@ export default function Home() {
   }, [activeSpaceId, currentUser]);
 
   useEffect(() => {
+    let statusTimeout: number | null = null;
+
     if (!supabase) {
-      setPetState({ status: "0", nutrition: 0 });
-      setSelectedPetStage("stage0");
-      return;
+      statusTimeout = window.setTimeout(() => {
+        setCalendarEvents([]);
+        setHasHydratedCalendarEvents(false);
+        setCalendarEventsStatus("error");
+        setCalendarEventsMessage("Supabase is not configured.");
+      }, 0);
+      return () => {
+        if (statusTimeout !== null) {
+          window.clearTimeout(statusTimeout);
+        }
+      };
     }
 
     if (!activeSpaceId) {
-      setPetState({ status: "0", nutrition: 0 });
-      setSelectedPetStage("stage0");
-      return;
+      statusTimeout = window.setTimeout(() => {
+        setCalendarEvents([]);
+        setHasHydratedCalendarEvents(false);
+        setCalendarEventsStatus(currentUser ? "loading" : "idle");
+        setCalendarEventsMessage(
+          currentUser ? "Preparing your shared calendar." : "Sign in to see shared events.",
+        );
+      }, 0);
+      return () => {
+        if (statusTimeout !== null) {
+          window.clearTimeout(statusTimeout);
+        }
+      };
+    }
+
+    let isMounted = true;
+    const supabaseClient = supabase;
+
+    const loadCalendarEvents = async () => {
+      setCalendarEventsStatus("loading");
+      setCalendarEventsMessage(null);
+
+      const result = await fetchCalendarEventsForSpace(activeSpaceId);
+      if (!isMounted) {
+        return;
+      }
+
+      if (result.error) {
+        setCalendarEvents([]);
+        setHasHydratedCalendarEvents(true);
+        setCalendarEventsStatus("error");
+        setCalendarEventsMessage(result.error);
+        return;
+      }
+
+      setCalendarEvents(result.events);
+      setHasHydratedCalendarEvents(true);
+      setCalendarEventsStatus("ready");
+      setCalendarEventsMessage(null);
+    };
+
+    void loadCalendarEvents();
+
+    const channel = supabaseClient
+      .channel(`calender:${activeSpaceId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "calender",
+          filter: `space_id=eq.${activeSpaceId}`,
+        },
+        () => {
+          void loadCalendarEvents();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      if (statusTimeout !== null) {
+        window.clearTimeout(statusTimeout);
+      }
+      isMounted = false;
+      void supabaseClient.removeChannel(channel);
+    };
+  }, [activeSpaceId, currentUser]);
+
+  useEffect(() => {
+    if (!supabase) {
+      const resetTimeout = window.setTimeout(() => {
+        setPetState({ status: "0", nutrition: 0 });
+        setSelectedPetStage("stage0");
+      }, 0);
+      return () => window.clearTimeout(resetTimeout);
+    }
+
+    if (!activeSpaceId) {
+      const resetTimeout = window.setTimeout(() => {
+        setPetState({ status: "0", nutrition: 0 });
+        setSelectedPetStage("stage0");
+      }, 0);
+      return () => window.clearTimeout(resetTimeout);
     }
 
     let isMounted = true;
@@ -675,13 +791,42 @@ export default function Home() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isCalendarOpen]);
 
+  useEffect(() => {
+    if (!isCalendarOpen) {
+      return;
+    }
+
+    const focusTimeout = window.setTimeout(() => {
+      calendarEventInputRef.current?.focus({ preventScroll: true });
+    }, 120);
+
+    return () => window.clearTimeout(focusTimeout);
+  }, [isCalendarOpen, selectedCalendarDate]);
+
   const previewNotes = useMemo(() => notesState.notes.slice(0, 4), [notesState.notes]);
+  const selectedDateEvents = useMemo(
+    () => calendarEvents.filter((item) => item.date === selectedCalendarDate),
+    [calendarEvents, selectedCalendarDate],
+  );
+  const calendarEventCountsByDate = useMemo(() => {
+    return calendarEvents.reduce<Record<string, number>>((accumulator, item) => {
+      accumulator[item.date] = (accumulator[item.date] ?? 0) + 1;
+      return accumulator;
+    }, {});
+  }, [calendarEvents]);
   const isSaveDisabled =
     draft.trim().length === 0 ||
     !currentUser ||
     !activeSpaceId ||
     notesStatus === "saving" ||
     notesStatus === "loading";
+  const isCalendarEventSaveDisabled =
+    calendarEventDraft.trim().length === 0 ||
+    !currentUser ||
+    !activeSpaceId ||
+    calendarEventsStatus === "saving" ||
+    calendarEventsStatus === "loading" ||
+    !selectedCalendarDate;
 
   const handleEmailSignIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -705,7 +850,7 @@ export default function Home() {
     const { error } = await supabase.auth.signInWithOtp({
       email: trimmedEmail,
       options: {
-        emailRedirectTo: window.location.origin,
+        emailRedirectTo: getAuthRedirectUrl(),
       },
     });
 
@@ -736,6 +881,10 @@ export default function Home() {
     dispatch({ type: "reset" });
     setNotesStatus("idle");
     setNotesMessage(null);
+    setCalendarEvents([]);
+    setHasHydratedCalendarEvents(false);
+    setCalendarEventsStatus("idle");
+    setCalendarEventsMessage(null);
     setAuthStatus("idle");
     setAuthMessage(null);
     setIsAuthMenuOpen(false);
@@ -781,6 +930,54 @@ export default function Home() {
     pendingNoteReactionRef.current = true;
     setDraft("");
     setIsNoteOpen(true);
+  };
+
+  const handleCalendarEventSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const trimmed = calendarEventDraft.trim();
+    if (!trimmed || !supabase || !currentUser || !activeSpaceId || !selectedCalendarDate) {
+      if (!currentUser || !activeSpaceId) {
+        setCalendarEventsStatus("error");
+        setCalendarEventsMessage("Sign in first to add an event to the shared calendar.");
+      }
+      return;
+    }
+
+    setCalendarEventsStatus("saving");
+    setCalendarEventsMessage(null);
+
+    const optimisticEvent: CalendarEventItem = {
+      id: crypto.randomUUID(),
+      text: trimmed,
+      eventType: selectedEventType,
+      date: selectedCalendarDate,
+      createdAt: new Date().toISOString(),
+    };
+
+    setCalendarEvents((current) => sortCalendarEvents([optimisticEvent, ...current]));
+    setHasHydratedCalendarEvents(true);
+
+    const { error } = await supabase.from("calender").insert({
+      space_id: activeSpaceId,
+      Event: trimmed,
+      EventType: selectedEventType,
+      Date: selectedCalendarDate,
+    });
+
+    if (error) {
+      const result = await fetchCalendarEventsForSpace(activeSpaceId);
+      setCalendarEvents(result.events ?? []);
+      setHasHydratedCalendarEvents(true);
+      setCalendarEventsStatus("error");
+      setCalendarEventsMessage(error.message);
+      return;
+    }
+
+    setCalendarEventsStatus("ready");
+    setCalendarEventsMessage("Event saved.");
+    setCalendarEventDraft("");
+    setSelectedEventType("娱乐");
   };
 
   const handleFoodPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -1221,13 +1418,115 @@ export default function Home() {
             aria-hidden={!isCalendarOpen}
             className={`${styles.calendarPanel} ${isCalendarOpen ? styles.calendarPanelOpen : ""}`}
           >
-            <MonthCalendar
-              year={calendarViewDate.getFullYear()}
-              month={calendarViewDate.getMonth() + 1}
-              onClose={() => setIsCalendarOpen(false)}
-              onPreviousMonth={() => setCalendarViewDate((current) => shiftMonth(current, -1))}
-              onNextMonth={() => setCalendarViewDate((current) => shiftMonth(current, 1))}
-            />
+            <div className={styles.calendarPanelContent}>
+              <MonthCalendar
+                year={calendarViewDate.getFullYear()}
+                month={calendarViewDate.getMonth() + 1}
+                selectedDate={selectedCalendarDate}
+                eventCountsByDate={calendarEventCountsByDate}
+                onSelectDate={(isoDate) => setSelectedCalendarDate(isoDate)}
+                onClose={() => setIsCalendarOpen(false)}
+                onPreviousMonth={() => setCalendarViewDate((current) => shiftMonth(current, -1))}
+                onNextMonth={() => setCalendarViewDate((current) => shiftMonth(current, 1))}
+              />
+
+              <section className={styles.calendarAgenda} aria-label="Selected day events">
+                <header className={styles.calendarAgendaHeader}>
+                  <p className={styles.calendarAgendaEyebrow}>Shared events</p>
+                  <h2 className={styles.calendarAgendaTitle}>
+                    {formatSelectedCalendarDate(selectedCalendarDate)}
+                  </h2>
+                </header>
+
+                <form className={styles.calendarEventForm} onSubmit={handleCalendarEventSubmit}>
+                  <div className={styles.calendarEventControls}>
+                    <label className={styles.calendarField}>
+                      <span>Type</span>
+                      <select
+                        value={selectedEventType}
+                        onChange={(event) => setSelectedEventType(event.target.value as EventType)}
+                        className={styles.calendarSelect}
+                      >
+                        {EVENT_TYPES.map((eventType) => (
+                          <option key={eventType} value={eventType}>
+                            {eventType}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className={styles.calendarField}>
+                      <span>Date</span>
+                      <input
+                        type="date"
+                        value={selectedCalendarDate}
+                        onChange={(event) => {
+                          setSelectedCalendarDate(event.target.value);
+                          const nextDate = new Date(`${event.target.value}T00:00:00`);
+                          if (!Number.isNaN(nextDate.getTime())) {
+                            setCalendarViewDate(
+                              new Date(nextDate.getFullYear(), nextDate.getMonth(), 1),
+                            );
+                          }
+                        }}
+                        className={styles.calendarDateInput}
+                      />
+                    </label>
+                  </div>
+
+                  <textarea
+                    ref={calendarEventInputRef}
+                    value={calendarEventDraft}
+                    onChange={(event) => setCalendarEventDraft(event.target.value)}
+                    className={styles.calendarTextarea}
+                    rows={4}
+                    placeholder="Add an event for this day..."
+                  />
+
+                  <button
+                    type="submit"
+                    className={styles.calendarSaveButton}
+                    disabled={isCalendarEventSaveDisabled}
+                  >
+                    {calendarEventsStatus === "saving" ? "Saving..." : "Save event"}
+                  </button>
+                </form>
+
+                <div className={styles.calendarAgendaList}>
+                  {calendarEventsStatus === "loading" && !hasHydratedCalendarEvents ? (
+                    <div className={styles.calendarAgendaEmpty}>
+                      <p>Loading shared events...</p>
+                    </div>
+                  ) : selectedDateEvents.length === 0 ? (
+                    <div className={styles.calendarAgendaEmpty}>
+                      <p>No events for this day yet.</p>
+                    </div>
+                  ) : (
+                    selectedDateEvents.map((item) => (
+                      <article key={item.id} className={styles.calendarAgendaItem}>
+                        <div className={styles.calendarAgendaMeta}>
+                          <span className={styles.calendarAgendaType}>{item.eventType}</span>
+                          <time dateTime={item.createdAt} className={styles.calendarAgendaTime}>
+                            {formatCalendarEventTimestamp(item.createdAt)}
+                          </time>
+                        </div>
+                        <p className={styles.calendarAgendaText}>{item.text}</p>
+                      </article>
+                    ))
+                  )}
+                </div>
+
+                {calendarEventsMessage ? (
+                  <p
+                    className={`${styles.calendarAgendaStatus} ${
+                      calendarEventsStatus === "error" ? styles.calendarAgendaStatusError : ""
+                    }`}
+                  >
+                    {calendarEventsMessage}
+                  </p>
+                ) : null}
+              </section>
+            </div>
           </section>
 
           <section
@@ -1411,6 +1710,37 @@ async function fetchNotesForSpace(spaceId: string) {
   };
 }
 
+async function fetchCalendarEventsForSpace(spaceId: string) {
+  if (!supabase) {
+    return { error: "Supabase is not configured.", events: [] as CalendarEventItem[] };
+  }
+
+  const { data, error } = await supabase
+    .from("calender")
+    .select("id, Event, EventType, Date, created_at")
+    .eq("space_id", spaceId)
+    .order("Date", { ascending: true })
+    .order("created_at", { ascending: false })
+    .limit(100);
+
+  if (error) {
+    return { error: error.message, events: [] as CalendarEventItem[] };
+  }
+
+  return {
+    error: null,
+    events: sortCalendarEvents(
+      (data ?? []).map((item) => ({
+        id: String(item.id),
+        text: item.Event ?? "",
+        eventType: normalizeEventType(item.EventType),
+        date: item.Date ?? "",
+        createdAt: item.created_at,
+      })),
+    ),
+  };
+}
+
 async function ensurePetStateForSpace(spaceId: string) {
   if (!supabase) {
     return { error: "Supabase is not configured.", petState: null as PetState | null };
@@ -1510,10 +1840,64 @@ function formatShortDate(date: string) {
   });
 }
 
+function formatSelectedCalendarDate(date: string) {
+  return new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "long",
+  });
+}
+
+function formatCalendarEventTimestamp(date: string) {
+  return new Date(date).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+function getTodayDateValue() {
+  const now = new Date();
+  const timezoneOffset = now.getTimezoneOffset() * 60_000;
+  return new Date(now.getTime() - timezoneOffset).toISOString().slice(0, 10);
+}
+
+function sortCalendarEvents(items: CalendarEventItem[]) {
+  return [...items].sort((left, right) => {
+    const dateCompare = left.date.localeCompare(right.date);
+    if (dateCompare !== 0) {
+      return dateCompare;
+    }
+
+    return right.createdAt.localeCompare(left.createdAt);
+  });
+}
+
+function normalizeEventType(value: string | null): EventType {
+  if (value && EVENT_TYPES.includes(value as EventType)) {
+    return value as EventType;
+  }
+
+  return "随记";
+}
+
 function shiftMonth(date: Date, offset: number) {
   return new Date(date.getFullYear(), date.getMonth() + offset, 1);
 }
 
 function rectanglesOverlap(a: DOMRect, b: DOMRect) {
   return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+}
+
+function getAuthRedirectUrl() {
+  if (configuredAppUrl) {
+    return configuredAppUrl;
+  }
+
+  if (typeof window !== "undefined") {
+    return window.location.origin;
+  }
+
+  return "https://project-mooshroom.vercel.app";
 }

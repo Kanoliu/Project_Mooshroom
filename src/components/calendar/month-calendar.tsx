@@ -29,6 +29,9 @@ const ROTATIONS = [0, 90, 180, 270] as const;
 type MonthCalendarProps = {
   year: number;
   month: number;
+  selectedDate?: string | null;
+  eventCountsByDate?: Record<string, number>;
+  onSelectDate?: (isoDate: string) => void;
   onPreviousMonth?: () => void;
   onNextMonth?: () => void;
   onClose?: () => void;
@@ -38,6 +41,9 @@ type MonthCalendarProps = {
 export function MonthCalendar({
   year,
   month,
+  selectedDate,
+  eventCountsByDate,
+  onSelectDate,
   onPreviousMonth,
   onNextMonth,
   onClose,
@@ -140,14 +146,24 @@ export function MonthCalendar({
         <div className={styles.bodyGrid} role="grid" aria-label={calendarLabel}>
           {decoratedCells.map((cell, index) => {
             const isOutsideCurrentMonth = !cell.isCurrentMonth;
+            const isSelected = !!cell.isoDate && cell.isoDate === selectedDate;
+            const eventCount = cell.isoDate ? eventCountsByDate?.[cell.isoDate] ?? 0 : 0;
 
             return (
-              <div
+              <button
                 key={cell.isoDate ?? `empty-${index}`}
-                className={`${styles.dayCell} ${isOutsideCurrentMonth ? styles.dayCellEmpty : ""}`.trim()}
+                type="button"
+                className={`${styles.dayCell} ${isOutsideCurrentMonth ? styles.dayCellEmpty : ""} ${isSelected ? styles.dayCellSelected : ""}`.trim()}
                 role="gridcell"
                 aria-label={cell.isoDate ?? undefined}
                 aria-disabled={isOutsideCurrentMonth || undefined}
+                disabled={isOutsideCurrentMonth}
+                aria-selected={isSelected}
+                onClick={() => {
+                  if (cell.isoDate && !isOutsideCurrentMonth) {
+                    onSelectDate?.(cell.isoDate);
+                  }
+                }}
               >
                 <Image
                   src={cell.tileVariant}
@@ -162,7 +178,10 @@ export function MonthCalendar({
                 >
                   {cell.date}
                 </span>
-              </div>
+                {eventCount > 0 ? (
+                  <span className={styles.eventCountBadge}>{eventCount > 9 ? "9+" : eventCount}</span>
+                ) : null}
+              </button>
             );
           })}
         </div>

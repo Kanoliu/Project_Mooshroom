@@ -1,13 +1,17 @@
 .page {
   display: flex;
   flex: 1;
+  min-height: 0;
   align-items: center;
   justify-content: center;
   padding: 24px;
+  overflow: hidden;
 }
 
 .phoneShell {
   width: min(100%, 540px);
+  height: 100%;
+  max-height: 100%;
   border-radius: 40px;
   padding: 12px;
   background: linear-gradient(180deg, #e5cfb5 0%, #c29475 100%);
@@ -21,6 +25,7 @@
   --pet-shadow: rgba(91, 69, 55, 0.24);
   position: relative;
   min-height: min(var(--app-height, 92vh), 980px);
+  height: 100%;
   overflow: hidden;
   border-radius: 32px;
   border: 2px solid rgba(130, 94, 65, 0.55);
@@ -284,7 +289,11 @@
 .noteInput:focus-visible,
 .authInput:focus-visible,
 .authButton:focus-visible,
-.resourceButton:focus-visible {
+.resourceButton:focus-visible,
+.calendarSelect:focus-visible,
+.calendarDateInput:focus-visible,
+.calendarTextarea:focus-visible,
+.calendarSaveButton:focus-visible {
   outline: 2px solid rgba(141, 95, 54, 0.8);
   outline-offset: 2px;
 }
@@ -405,6 +414,187 @@
   transform: translate(-50%, -20px);
   opacity: 1;
   pointer-events: auto;
+}
+
+.calendarPanelContent {
+  display: grid;
+  gap: 14px;
+}
+
+.calendarAgenda {
+  display: grid;
+  gap: 12px;
+  padding: 18px 18px 20px;
+  border-radius: 26px;
+  background: rgba(255, 247, 236, 0.86);
+  box-shadow:
+    0 18px 30px rgba(74, 48, 29, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.54);
+}
+
+.calendarAgendaHeader {
+  display: grid;
+  gap: 2px;
+}
+
+.calendarAgendaEyebrow {
+  margin: 0;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(83, 49, 29, 0.64);
+}
+
+.calendarAgendaTitle {
+  margin: 0;
+  color: #2d180d;
+  font-size: 1.1rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.calendarEventForm {
+  display: grid;
+  gap: 10px;
+}
+
+.calendarEventControls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+}
+
+.calendarField {
+  display: grid;
+  gap: 6px;
+  color: #3c2416;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.calendarSelect,
+.calendarDateInput,
+.calendarTextarea {
+  width: 100%;
+  border: 1px solid rgba(131, 92, 62, 0.2);
+  border-radius: 14px;
+  background: rgba(255, 252, 247, 0.92);
+  color: #2f180c;
+  font: inherit;
+}
+
+.calendarSelect,
+.calendarDateInput {
+  min-height: 40px;
+  padding: 0 12px;
+}
+
+.calendarTextarea {
+  min-height: 96px;
+  resize: vertical;
+  padding: 12px 14px;
+  line-height: 1.45;
+}
+
+.calendarSaveButton {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 116px;
+  min-height: 44px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #7d5132;
+  color: #fff8f1;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.calendarSaveButton:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.calendarAgendaList {
+  display: grid;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+}
+
+.calendarAgendaItem {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 18px;
+  background: rgba(255, 252, 247, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(123, 84, 54, 0.1);
+}
+
+.calendarAgendaMeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.calendarAgendaType {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(125, 81, 50, 0.14);
+  color: #5d361f;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.calendarAgendaTime {
+  color: rgba(83, 49, 29, 0.72);
+  font-size: 0.74rem;
+}
+
+.calendarAgendaText {
+  margin: 0;
+  color: #2f180c;
+  font-size: 0.92rem;
+  font-weight: 600;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.calendarAgendaEmpty {
+  display: grid;
+  place-items: center;
+  min-height: 88px;
+  padding: 14px;
+  border-radius: 18px;
+  background: rgba(255, 252, 247, 0.72);
+  color: rgba(47, 24, 12, 0.72);
+  text-align: center;
+}
+
+.calendarAgendaEmpty p {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.calendarAgendaStatus {
+  margin: 0;
+  color: rgba(47, 24, 12, 0.72);
+  font-size: 0.76rem;
+  line-height: 1.35;
+}
+
+.calendarAgendaStatusError {
+  color: #9a2f2f;
 }
 
 .notesPanelOpen {
@@ -640,17 +830,29 @@
 
 @media (max-width: 640px) {
   .page {
-    padding: 12px;
+    min-height: var(--app-height, 100dvh);
+    padding:
+      var(--app-safe-top)
+      var(--app-safe-right)
+      var(--app-safe-bottom)
+      var(--app-safe-left);
+    align-items: stretch;
   }
 
   .phoneShell {
-    padding: 10px;
-    border-radius: 30px;
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    border-radius: 0;
+    box-shadow: none;
   }
 
   .scene {
-    min-height: calc(var(--app-height, 100dvh) - 24px);
-    border-radius: 24px;
+    min-height: 0;
+    height: 100%;
+    border-radius: 0;
+    border-width: 0;
+    box-shadow: none;
   }
 
   .topDock {
@@ -722,6 +924,34 @@
   .calendarPanel {
     width: min(130%, 80vh);
     bottom: max(2px, env(safe-area-inset-bottom, 0px));
+  }
+
+  .calendarAgenda {
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .calendarAgendaTitle {
+    font-size: 0.98rem;
+  }
+
+  .calendarEventControls {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .calendarTextarea {
+    min-height: 84px;
+    font-size: 0.94rem;
+  }
+
+  .calendarSaveButton {
+    justify-self: stretch;
+    width: 100%;
+  }
+
+  .calendarAgendaList {
+    max-height: 180px;
   }
 
   .notesPanelInner {
