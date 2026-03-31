@@ -47,6 +47,13 @@ type CalendarEventItem = {
   createdAt: string;
 };
 
+const EVENT_TYPE_STAMP_ART: Record<EventType, string> = {
+  娱乐: "/art/ui/calendar-stamps/entertainment.webp",
+  办事: "/art/ui/calendar-stamps/event.webp",
+  吃饭: "/art/ui/calendar-stamps/dinner.webp",
+  随记: "/art/ui/calendar-stamps/record.webp",
+};
+
 type NotesAction =
   | { type: "hydrate"; notes: NoteItem[] }
   | { type: "add"; note: NoteItem }
@@ -117,6 +124,11 @@ const petEatFrames = Array.from({ length: 50 }, (_, index) => {
 const petWaterFrames = Array.from({ length: 51 }, (_, index) => {
   const frameNumber = String(index + 1).padStart(4, "0");
   return `/art/pets/water/frame_${frameNumber}.webp`;
+});
+
+const waterEffectFrames = Array.from({ length: 60 }, (_, index) => {
+  const frameNumber = String(index + 1).padStart(4, "0");
+  return `/art/effects/water-effect/frame_${frameNumber}.webp`;
 });
 
 const petDigFrames = Array.from({ length: 60 }, (_, index) => {
@@ -259,7 +271,9 @@ export default function Home() {
   const [selectedEventType, setSelectedEventType] = useState<EventType>("娱乐");
   const [email, setEmail] = useState("");
   const [currentFrame, setCurrentFrame] = useState(0);
+  const [currentWaterEffectFrame, setCurrentWaterEffectFrame] = useState(0);
   const [petAnimation, setPetAnimation] = useState<PetAnimation>("idle");
+  const [isWaterEffectPlaying, setIsWaterEffectPlaying] = useState(false);
   const [petState, setPetState] = useState<PetState>({
     status: "0",
     nutrition: 0,
@@ -290,6 +304,7 @@ export default function Home() {
   const kettleButtonRef = useRef<HTMLButtonElement>(null);
   const petButtonRef = useRef<HTMLButtonElement>(null);
   const animationFrameRef = useRef<number | null>(null);
+  const waterEffectFrameRef = useRef<number | null>(null);
   const hadNoteOpenRef = useRef(false);
   const pendingNoteReactionRef = useRef(false);
   const foodDragRef = useRef<DragState | null>(null);
@@ -662,6 +677,7 @@ export default function Home() {
       ...petReactFrames,
       ...petEatFrames,
       ...petWaterFrames,
+      ...waterEffectFrames,
       ...petDigFrames,
       ...(selectedPetStage === "stage3" ? stage3PetReactFrames : []),
       ...petStageFrames[selectedPetStage],
@@ -711,6 +727,43 @@ export default function Home() {
     };
   }, [petAnimation, selectedPetStage]);
 
+  useLayoutEffect(() => {
+    if (!isWaterEffectPlaying) {
+      return;
+    }
+
+    const frameDuration = 1000 / 12;
+    let lastFrameTime = performance.now();
+
+    const tick = (timestamp: number) => {
+      if (timestamp - lastFrameTime >= frameDuration) {
+        lastFrameTime = timestamp;
+
+        setCurrentWaterEffectFrame((frame) => {
+          if (frame >= waterEffectFrames.length - 1) {
+            window.setTimeout(() => {
+              setIsWaterEffectPlaying(false);
+              setCurrentWaterEffectFrame(0);
+            }, 0);
+            return frame;
+          }
+
+          return frame + 1;
+        });
+      }
+
+      waterEffectFrameRef.current = window.requestAnimationFrame(tick);
+    };
+
+    waterEffectFrameRef.current = window.requestAnimationFrame(tick);
+
+    return () => {
+      if (waterEffectFrameRef.current !== null) {
+        window.cancelAnimationFrame(waterEffectFrameRef.current);
+      }
+    };
+  }, [isWaterEffectPlaying]);
+
   const handlePetTap = () => {
     if (selectedPetStage !== "pet" && selectedPetStage !== "stage3") {
       return;
@@ -736,6 +789,11 @@ export default function Home() {
 
     setCurrentFrame(0);
     setPetAnimation("water");
+  };
+
+  const triggerWaterEffect = () => {
+    setCurrentWaterEffectFrame(0);
+    setIsWaterEffectPlaying(true);
   };
 
   useEffect(() => {
@@ -854,12 +912,29 @@ export default function Home() {
     () => calendarEvents.filter((item) => item.date === selectedCalendarDate),
     [calendarEvents, selectedCalendarDate],
   );
-  const calendarEventCountsByDate = useMemo(() => {
-    return calendarEvents.reduce<Record<string, number>>((accumulator, item) => {
-      accumulator[item.date] = (accumulator[item.date] ?? 0) + 1;
+  const selectedDateEventDraft = useMemo(
+    () => formatCalendarEditorText(selectedDateEvents),
+    [selectedDateEvents],
+  );
+
+  useEffect(() => {
+    setCalendarEventDraft(selectedDateEventDraft);
+
+    if (selectedDateEvents[0]) {
+      setSelectedEventType(selectedDateEvents[0].eventType);
+    }
+  }, [selectedDateEventDraft, selectedDateEvents]);
+
+  const calendarEventStampByDate = useMemo(() => {
+    return calendarEvents.reduce<Record<string, string>>((accumulator, item) => {
+      if (!accumulator[item.date]) {
+        accumulator[item.date] = EVENT_TYPE_STAMP_ART[item.eventType];
+      }
       return accumulator;
     }, {});
   }, [calendarEvents]);
+  const normalizedCalendarEventDraft = normalizeCalendarEditorText(calendarEventDraft);
+  const normalizedSelectedDateEventDraft = normalizeCalendarEditorText(selectedDateEventDraft);
   const isSaveDisabled =
     draft.trim().length === 0 ||
     !currentUser ||
@@ -867,12 +942,12 @@ export default function Home() {
     notesStatus === "saving" ||
     notesStatus === "loading";
   const isCalendarEventSaveDisabled =
-    calendarEventDraft.trim().length === 0 ||
     !currentUser ||
     !activeSpaceId ||
     calendarEventsStatus === "saving" ||
     calendarEventsStatus === "loading" ||
-    !selectedCalendarDate;
+    !selectedCalendarDate ||
+    normalizedCalendarEventDraft === normalizedSelectedDateEventDraft;
 
   const handleEmailSignIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -988,46 +1063,74 @@ export default function Home() {
   const handleCalendarEventSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
-    const trimmed = calendarEventDraft.trim();
-    if (!trimmed || !supabase || !currentUser || !activeSpaceId || !selectedCalendarDate) {
+    if (!supabase || !currentUser || !activeSpaceId || !selectedCalendarDate) {
       if (!currentUser || !activeSpaceId) {
         setCalendarEventsStatus("error");
-        setCalendarEventsMessage("Sign in first to add an event to the shared calendar.");
+        setCalendarEventsMessage("Sign in first to edit the shared calendar.");
       }
       return;
     }
 
+    const parsedEvents = parseCalendarEditorText(calendarEventDraft, selectedEventType).map((item, index) => ({
+      id: crypto.randomUUID(),
+      text: item.text,
+      eventType: item.eventType,
+      date: selectedCalendarDate,
+      createdAt: new Date(Date.now() + index).toISOString(),
+    }));
+
     setCalendarEventsStatus("saving");
     setCalendarEventsMessage(null);
 
-    const optimisticEvent: CalendarEventItem = {
-      id: crypto.randomUUID(),
-      text: trimmed,
-      eventType: selectedEventType,
-      date: selectedCalendarDate,
-      createdAt: new Date().toISOString(),
-    };
-
-    setCalendarEvents((current) => sortCalendarEvents([optimisticEvent, ...current]));
+    const previousEvents = calendarEvents;
+    setCalendarEvents((current) =>
+      sortCalendarEvents([
+        ...current.filter((item) => item.date !== selectedCalendarDate),
+        ...parsedEvents,
+      ]),
+    );
     setHasHydratedCalendarEvents(true);
 
-    const { error } = await supabase.from("calender").insert({
-      space_id: activeSpaceId,
-      Event: trimmed,
-      EventType: selectedEventType,
-      Date: selectedCalendarDate,
-    });
+    const { error: deleteError } = await supabase
+      .from("calender")
+      .delete()
+      .eq("space_id", activeSpaceId)
+      .eq("Date", selectedCalendarDate);
 
-    if (error) {
+    if (deleteError) {
+      setCalendarEvents(previousEvents);
       const result = await fetchCalendarEventsForSpace(activeSpaceId);
       setCalendarEvents(result.events ?? []);
       setHasHydratedCalendarEvents(true);
       setCalendarEventsStatus("error");
-      setCalendarEventsMessage(error.message);
+      setCalendarEventsMessage(deleteError.message);
       return;
     }
 
-    const rewardResult = await applyPetAction(activeSpaceId, "calendar", currentUser.id);
+    if (parsedEvents.length > 0) {
+      const { error: insertError } = await supabase.from("calender").insert(
+        parsedEvents.map((item) => ({
+          space_id: activeSpaceId,
+          Event: item.text,
+          EventType: item.eventType,
+          Date: item.date,
+        })),
+      );
+
+      if (insertError) {
+        const result = await fetchCalendarEventsForSpace(activeSpaceId);
+        setCalendarEvents(result.events ?? []);
+        setHasHydratedCalendarEvents(true);
+        setCalendarEventsStatus("error");
+        setCalendarEventsMessage(insertError.message);
+        return;
+      }
+    }
+
+    const rewardResult =
+      parsedEvents.length > 0
+        ? await applyPetAction(activeSpaceId, "calendar", currentUser.id)
+        : { error: null, petState: null };
     if (rewardResult.petState) {
       setPetState(rewardResult.petState);
       setSelectedPetStage(getStageFromStatus(rewardResult.petState.status));
@@ -1035,9 +1138,12 @@ export default function Home() {
 
     setCalendarEventsStatus("ready");
     setCalendarEventsMessage(
-      rewardResult.error ? "Event saved, but pet XP could not be updated." : "Event saved.",
+      parsedEvents.length === 0
+        ? "Events cleared for this day."
+        : rewardResult.error
+          ? "Events saved, but pet XP could not be updated."
+          : "Day events saved.",
     );
-    setCalendarEventDraft("");
     setSelectedEventType("娱乐");
   };
 
@@ -1119,7 +1225,6 @@ export default function Home() {
     const kettleRect = kettleButtonRef.current?.getBoundingClientRect();
     const petRect = petButtonRef.current?.getBoundingClientRect();
     const isDroppedOnPet =
-      selectedPetStage === "pet" &&
       kettleRect &&
       petRect &&
       rectanglesOverlap(kettleRect, petRect);
@@ -1136,12 +1241,19 @@ export default function Home() {
     }
 
     if (isDroppedOnPet) {
-      triggerPetWater();
-      void waterPet();
+      triggerWaterEffect();
+
+      if (selectedPetStage === "pet") {
+        triggerPetWater();
+        void waterPet();
+      }
     }
   };
 
   const activePetFrames = getActivePetFrames(selectedPetStage, petAnimation);
+  const activeWaterEffectFrame = isWaterEffectPlaying
+    ? waterEffectFrames[currentWaterEffectFrame] ?? null
+    : null;
 
   const feedPet = async () => {
     if (!activeSpaceId) {
@@ -1471,6 +1583,20 @@ export default function Home() {
                 decoding="sync"
                 draggable={false}
               />
+              {activeWaterEffectFrame ? (
+                <img
+                  src={activeWaterEffectFrame}
+                  alt=""
+                  aria-hidden="true"
+                  className={styles.petWaterEffect}
+                  width={220}
+                  height={220}
+                  loading="eager"
+                  fetchPriority="high"
+                  decoding="sync"
+                  draggable={false}
+                />
+              ) : null}
             </button>
           </div>
 
@@ -1486,7 +1612,7 @@ export default function Home() {
               year={calendarViewDate.getFullYear()}
               month={calendarViewDate.getMonth() + 1}
               selectedDate={selectedCalendarDate}
-              eventCountsByDate={calendarEventCountsByDate}
+              eventStampByDate={calendarEventStampByDate}
               onSelectDate={(isoDate) => setSelectedCalendarDate(isoDate)}
               onClose={() => setIsCalendarOpen(false)}
               onPreviousMonth={() => setCalendarViewDate((current) => shiftMonth(current, -1))}
@@ -1532,25 +1658,16 @@ export default function Home() {
                         value={calendarEventDraft}
                         onChange={(event) => setCalendarEventDraft(event.target.value)}
                         className={styles.calendarFooterTextarea}
-                        rows={4}
-                        placeholder="Add an event for this day..."
+                        rows={7}
+                        placeholder="Write one event per line. Use [type] text to override the selected type."
                       />
                     </form>
 
-                  <div className={styles.calendarFooterList}>
-                    {calendarEventsStatus === "loading" && !hasHydratedCalendarEvents ? (
-                      <p className={styles.calendarFooterMessage}>Loading shared events...</p>
-                    ) : selectedDateEvents.length === 0 ? (
-                      <p className={styles.calendarFooterMessage}>No events for this day yet.</p>
-                    ) : (
-                      selectedDateEvents.map((item) => (
-                        <article key={item.id} className={styles.calendarFooterItem}>
-                          <span className={styles.calendarFooterItemType}>{item.eventType}</span>
-                          <p className={styles.calendarFooterItemText}>{item.text}</p>
-                        </article>
-                      ))
-                    )}
-                  </div>
+                  <p className={styles.calendarFooterMessage}>
+                    {calendarEventsStatus === "loading" && !hasHydratedCalendarEvents
+                      ? "Loading shared events..."
+                      : "Edit this day here. Each non-empty line saves as one event."}
+                  </p>
 
                   {calendarEventsMessage ? (
                     <p
@@ -1926,6 +2043,45 @@ function getTodayDateValue() {
   const now = new Date();
   const timezoneOffset = now.getTimezoneOffset() * 60_000;
   return new Date(now.getTime() - timezoneOffset).toISOString().slice(0, 10);
+}
+
+function formatCalendarEditorText(items: CalendarEventItem[]) {
+  return items.map((item) => `[${item.eventType}] ${item.text}`.trim()).join("\n");
+}
+
+function parseCalendarEditorText(value: string, defaultEventType: EventType) {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const prefixedMatch = line.match(/^\[(.+?)\]\s*(.+)$/);
+
+      if (prefixedMatch) {
+        const [, maybeType, text] = prefixedMatch;
+
+        if (EVENT_TYPES.includes(maybeType as EventType)) {
+          return {
+            eventType: maybeType as EventType,
+            text: text.trim(),
+          };
+        }
+      }
+
+      return {
+        eventType: defaultEventType,
+        text: line,
+      };
+    })
+    .filter((item) => item.text.length > 0);
+}
+
+function normalizeCalendarEditorText(value: string) {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .join("\n");
 }
 
 function sortCalendarEvents(items: CalendarEventItem[]) {

@@ -10,6 +10,8 @@ import calendarDayCell5 from "../../../art-resources/ui/Calender/Calender Cell 5
 import calendarDayCell6 from "../../../art-resources/ui/Calender/Calender Cell 6.webp";
 import calendarDayCell7 from "../../../art-resources/ui/Calender/Calender Cell 7.webp";
 import calendarPanel from "../../../art-resources/ui/Calender/Calender Panel.webp";
+import arrowLeft from "../../../art-resources/ui/arrow-left-216.webp";
+import arrowRight from "../../../art-resources/ui/arrow-right-216.webp";
 import { defaultCalendarLayout } from "@/lib/calendar/layout";
 import { buildCalendarMonth } from "@/lib/calendar/month";
 import styles from "./month-calendar.module.css";
@@ -30,7 +32,7 @@ type MonthCalendarProps = {
   year: number;
   month: number;
   selectedDate?: string | null;
-  eventCountsByDate?: Record<string, number>;
+  eventStampByDate?: Record<string, string>;
   onSelectDate?: (isoDate: string) => void;
   footerContent?: ReactNode;
   onPreviousMonth?: () => void;
@@ -43,7 +45,7 @@ export function MonthCalendar({
   year,
   month,
   selectedDate,
-  eventCountsByDate,
+  eventStampByDate,
   onSelectDate,
   footerContent,
   onPreviousMonth,
@@ -145,7 +147,7 @@ export function MonthCalendar({
             onClick={onPreviousMonth}
             aria-label="Previous month"
           >
-            Prev
+            <Image src={arrowLeft} alt="" fill className={styles.titleButtonArt} sizes="216px" />
           </button>
         ) : null}
         <div className={styles.titleCopy}>
@@ -159,7 +161,7 @@ export function MonthCalendar({
             onClick={onNextMonth}
             aria-label="Next month"
           >
-            Next
+            <Image src={arrowRight} alt="" fill className={styles.titleButtonArt} sizes="216px" />
           </button>
         ) : null}
       </header>
@@ -169,13 +171,14 @@ export function MonthCalendar({
           {decoratedCells.map((cell, index) => {
             const isOutsideCurrentMonth = !cell.isCurrentMonth;
             const isSelected = !!cell.isoDate && cell.isoDate === selectedDate;
-            const eventCount = cell.isoDate ? eventCountsByDate?.[cell.isoDate] ?? 0 : 0;
+            const eventStamp = cell.isoDate ? eventStampByDate?.[cell.isoDate] : undefined;
 
             return (
               <button
                 key={cell.isoDate ?? `empty-${index}`}
                 type="button"
                 className={`${styles.dayCell} ${isOutsideCurrentMonth ? styles.dayCellEmpty : ""} ${isSelected ? styles.dayCellSelected : ""}`.trim()}
+                style={{ zIndex: eventStamp ? 3 : isSelected ? 2 : 1 }}
                 role="gridcell"
                 aria-label={cell.isoDate ?? undefined}
                 aria-disabled={isOutsideCurrentMonth || undefined}
@@ -200,8 +203,16 @@ export function MonthCalendar({
                 >
                   {cell.date}
                 </span>
-                {eventCount > 0 ? (
-                  <span className={styles.eventCountBadge}>{eventCount > 9 ? "9+" : eventCount}</span>
+                {eventStamp ? (
+                  <span className={styles.eventStamp}>
+                    <img
+                      src={eventStamp}
+                      alt=""
+                      className={styles.eventStampArt}
+                      draggable={false}
+                      aria-hidden="true"
+                    />
+                  </span>
                 ) : null}
               </button>
             );

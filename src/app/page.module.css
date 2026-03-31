@@ -382,6 +382,21 @@
     drop-shadow(0 20px 24px rgba(99, 72, 54, 0.18));
 }
 
+.petWaterEffect {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  mix-blend-mode: screen;
+  opacity: 0.92;
+}
+
 .notesPanel {
   position: absolute;
   left: 50%;
@@ -427,24 +442,27 @@
 
 .calendarFooterContent {
   display: grid;
-  gap: 8px;
+  gap: 10px;
   align-content: start;
   height: 100%;
   min-width: 0;
   overflow: hidden;
+  padding: 52px 0 0;
 }
 
 .calendarFooterForm {
   position: relative;
   display: block;
+  width: calc(95% - 1.9rem);
+  margin: 0 auto;
   min-width: 0;
   cursor: text;
 }
 
 .calendarFooterControls {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  bottom: 8px;
+  right: 10px;
   z-index: 1;
   display: flex;
   gap: 6px;
@@ -472,10 +490,10 @@
 }
 
 .calendarFooterTextarea {
-  min-height: 76px;
-  max-height: 76px;
+  min-height: 81px;
+  max-height: 81px;
   resize: none;
-  padding: 42px 10px 10px;
+  padding: 10px 10px 42px;
   font-size: 0.74rem;
   line-height: 1.28;
 }
@@ -497,48 +515,6 @@
 .calendarFooterSaveButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.calendarFooterList {
-  display: grid;
-  gap: 6px;
-  min-height: 0;
-  max-height: 82px;
-  overflow-y: auto;
-  min-width: 0;
-}
-
-.calendarFooterItem {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  padding: 7px 9px;
-  border-radius: 12px;
-  background: rgba(255, 252, 247, 0.72);
-  box-shadow: inset 0 0 0 1px rgba(123, 84, 54, 0.1);
-  min-width: 0;
-}
-
-.calendarFooterItemType {
-  display: inline-flex;
-  align-items: center;
-  min-height: 22px;
-  padding: 0 8px;
-  border-radius: 999px;
-  background: rgba(125, 81, 50, 0.14);
-  color: #5d361f;
-  font-size: 0.7rem;
-  font-weight: 700;
-}
-
-.calendarFooterItemText {
-  margin: 0;
-  color: #2f180c;
-  font-size: 0.76rem;
-  font-weight: 600;
-  line-height: 1.35;
-  word-break: break-word;
 }
 
 .calendarFooterMessage,
@@ -1091,7 +1067,7 @@
   }
 
   .calendarFooterControls {
-    top: 6px;
+    bottom: 6px;
     right: 6px;
   }
 
@@ -1099,8 +1075,9 @@
     width: auto;
   }
 
-  .calendarFooterList {
-    max-height: 68px;
+  .calendarFooterTextarea {
+    min-height: 73px;
+    max-height: 73px;
   }
 
   .notesPanelInner {
