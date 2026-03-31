@@ -1427,7 +1427,11 @@ export default function Home() {
                     ref={noteButtonRef}
                     type="button"
                     className={styles.frameAction}
-                    onClick={() => setIsNoteOpen((open) => !open)}
+                    onClick={() => {
+                      setIsNoteOpen((open) => !open);
+                      setIsCalendarOpen(false);
+                      setIsAuthMenuOpen(false);
+                    }}
                     aria-expanded={isNoteOpen}
                     aria-controls="notes-panel"
                     aria-label={isNoteOpen ? "Close notes" : "Open notes"}
