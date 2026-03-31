@@ -816,7 +816,7 @@
 .noteBoard {
   position: relative;
   min-height: 0;
-  height: 280px;
+  height: 246px;
 }
 
 .boardCard {
@@ -888,30 +888,30 @@
 .noteComposer {
   display: grid;
   gap: 8px;
+  align-self: end;
   padding: 0 0.9rem calc(0.8rem + env(safe-area-inset-bottom, 0px));
 }
 
 .composerSurface {
-  display: grid;
-  gap: 12px;
-  padding: 36px 0 0;
-  justify-items: stretch;
+  position: relative;
+  display: block;
+  padding: 0;
   width: 100%;
   max-width: 100%;
   box-sizing: border-box;
 }
 
 .noteInput {
-  width: 88%;
-  max-width: 88%;
-  min-height: 84px;
-  max-height: 112px;
+  width: 100%;
+  max-width: 100%;
+  min-height: 104px;
+  max-height: 104px;
   resize: none;
   border: 1px solid rgba(120, 78, 50, 0.38);
   border-radius: 18px;
   background: transparent;
   box-shadow: none;
-  padding: 14px 16px;
+  padding: 14px 112px 14px 16px;
   font: inherit;
   font-size: 0.92rem;
   line-height: 1.45;
@@ -928,13 +928,15 @@
 }
 
 .saveButton {
-  justify-self: end;
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 116px;
-  min-height: 48px;
-  padding: 0 20px;
+  min-width: 92px;
+  min-height: 38px;
+  padding: 0 16px;
   border: 0;
   border-radius: 999px;
   background: rgba(127, 82, 50, 0.14);
@@ -943,7 +945,7 @@
     inset 0 0 0 1px rgba(111, 71, 45, 0.1);
   color: #000;
   font: inherit;
-  font-size: 0.98rem;
+  font-size: 0.88rem;
   font-weight: 700;
   cursor: pointer;
 }
@@ -968,11 +970,7 @@
 @media (max-width: 640px) {
   .page {
     min-height: var(--app-height, 100dvh);
-    padding:
-      var(--app-safe-top)
-      var(--app-safe-right)
-      var(--app-safe-bottom)
-      var(--app-safe-left);
+    padding: 0;
     align-items: stretch;
   }
 
@@ -993,10 +991,15 @@
   }
 
   .topDock {
-    top: 26px;
-    left: 14px;
-    right: 14px;
+    top: calc(26px + var(--app-safe-top));
+    left: calc(14px + var(--app-safe-left));
+    right: calc(14px + var(--app-safe-right));
     gap: 6px;
+  }
+
+  .bottomRightFrames {
+    right: calc(14px + var(--app-safe-right));
+    bottom: calc(18px + var(--app-safe-bottom));
   }
 
   .authPanel {
@@ -1134,20 +1137,19 @@
   .noteInput {
     width: 100%;
     max-width: 100%;
-    min-height: 96px;
-    max-height: 124px;
-    padding: 12px 14px;
+    min-height: 112px;
+    max-height: 112px;
+    padding: 12px 104px 12px 14px;
     font-size: 0.94rem;
     line-height: 1.5;
   }
 
   .noteBoard {
-    height: 220px;
+    height: 188px;
   }
 
   .composerSurface {
-    gap: 14px;
-    padding: 28px 0 0;
+    padding: 0;
   }
 
   .noteComposer {
@@ -1155,11 +1157,11 @@
   }
 
   .saveButton {
-    justify-self: stretch;
-    width: 100%;
-    min-width: 0;
-    min-height: 50px;
-    font-size: 0.98rem;
+    right: 8px;
+    bottom: 8px;
+    min-width: 88px;
+    min-height: 36px;
+    font-size: 0.84rem;
   }
 
   .noteStatus {
