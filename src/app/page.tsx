@@ -1663,12 +1663,6 @@ export default function Home() {
                       />
                     </form>
 
-                  <p className={styles.calendarFooterMessage}>
-                    {calendarEventsStatus === "loading" && !hasHydratedCalendarEvents
-                      ? "Loading shared events..."
-                      : "Edit this day here. Each non-empty line saves as one event."}
-                  </p>
-
                   {calendarEventsMessage ? (
                     <p
                       className={`${styles.calendarFooterStatus} ${

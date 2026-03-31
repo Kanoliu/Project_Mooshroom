@@ -402,7 +402,7 @@
   left: 50%;
   bottom: max(env(safe-area-inset-bottom, 0px), 0px);
   z-index: 9;
-  width: min(152%, 96vh);
+  width: min(calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 24px), 710px);
   max-width: 710px;
   aspect-ratio: 1;
   opacity: 0;
@@ -418,7 +418,7 @@
   left: 50%;
   bottom: max(env(safe-area-inset-bottom, 0px), 0px);
   z-index: 9;
-  width: min(116%, 74vh);
+  width: min(calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 24px), 540px);
   max-width: 540px;
   opacity: 0;
   pointer-events: none;
@@ -442,18 +442,20 @@
 
 .calendarFooterContent {
   display: grid;
-  gap: 10px;
-  align-content: start;
+  grid-template-rows: minmax(0, 1fr) auto auto;
+  gap: clamp(0.3rem, 0.9vw, 0.55rem);
+  align-content: stretch;
   height: 100%;
   min-width: 0;
   overflow: hidden;
-  padding: 52px 0 0;
+  padding: 8% 0 0;
 }
 
 .calendarFooterForm {
   position: relative;
   display: block;
-  width: calc(95% - 1.9rem);
+  width: 88%;
+  height: 120%;
   margin: 0 auto;
   min-width: 0;
   cursor: text;
@@ -461,8 +463,8 @@
 
 .calendarFooterControls {
   position: absolute;
-  bottom: 8px;
   right: 10px;
+  bottom: 10px;
   z-index: 1;
   display: flex;
   gap: 6px;
@@ -490,12 +492,14 @@
 }
 
 .calendarFooterTextarea {
-  min-height: 81px;
-  max-height: 81px;
+  height: 100%;
+  min-height: 100%;
+  max-height: none;
   resize: none;
   padding: 10px 10px 42px;
   font-size: 0.74rem;
   line-height: 1.28;
+  overflow: hidden;
 }
 
 .calendarFooterSaveButton {
@@ -994,6 +998,16 @@
     font-size: 0.86rem;
   }
 
+  .authInput,
+  .calendarSelect,
+  .calendarDateInput,
+  .calendarTextarea,
+  .calendarFooterSelect,
+  .calendarFooterTextarea,
+  .noteInput {
+    font-size: 16px;
+  }
+
   .resourceFrame {
     width: 56px;
   }
@@ -1028,12 +1042,12 @@
   }
 
   .notesPanel {
-    width: min(146%, 92vh);
+    width: min(calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 8px), 710px);
     bottom: max(2px, env(safe-area-inset-bottom, 0px));
   }
 
   .calendarPanel {
-    width: min(100%, calc(100vw - 8px));
+    width: min(calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 8px), 468px);
     max-width: 468px;
     bottom: max(2px, env(safe-area-inset-bottom, 0px));
   }
@@ -1054,7 +1068,7 @@
 
   .calendarTextarea {
     min-height: 84px;
-    font-size: 0.94rem;
+    font-size: 16px;
   }
 
   .calendarSaveButton {
@@ -1076,8 +1090,7 @@
   }
 
   .calendarFooterTextarea {
-    min-height: 73px;
-    max-height: 73px;
+    padding: 8px 8px 40px;
   }
 
   .notesPanelInner {
@@ -1110,7 +1123,7 @@
     min-height: 112px;
     max-height: 112px;
     padding: 12px 104px 12px 14px;
-    font-size: 0.94rem;
+    font-size: 16px;
     line-height: 1.5;
   }
 
