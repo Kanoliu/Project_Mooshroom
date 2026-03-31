@@ -29,7 +29,10 @@ type EventType = "娱乐" | "办事" | "吃饭" | "随记";
 type PetState = {
   status: PetStatusValue;
   nutrition: number;
+  xp: number;
 };
+
+type PetAction = "visit" | "note" | "calendar" | "feed" | "water";
 
 type NotesState = {
   hasHydrated: boolean;
@@ -260,6 +263,7 @@ export default function Home() {
   const [petState, setPetState] = useState<PetState>({
     status: "0",
     nutrition: 0,
+    xp: 0,
   });
   const [authStatus, setAuthStatus] = useState<AuthStatus>(
     supabase ? "idle" : "setup-required",
@@ -574,7 +578,7 @@ export default function Home() {
   useEffect(() => {
     if (!supabase) {
       const resetTimeout = window.setTimeout(() => {
-        setPetState({ status: "0", nutrition: 0 });
+        setPetState({ status: "0", nutrition: 0, xp: 0 });
         setSelectedPetStage("stage0");
       }, 0);
       return () => window.clearTimeout(resetTimeout);
@@ -582,13 +586,14 @@ export default function Home() {
 
     if (!activeSpaceId) {
       const resetTimeout = window.setTimeout(() => {
-        setPetState({ status: "0", nutrition: 0 });
+        setPetState({ status: "0", nutrition: 0, xp: 0 });
         setSelectedPetStage("stage0");
       }, 0);
       return () => window.clearTimeout(resetTimeout);
     }
 
     let isMounted = true;
+    const supabaseClient = supabase;
 
     const loadPetState = async () => {
       const result = await ensurePetStateForSpace(activeSpaceId);
@@ -604,10 +609,51 @@ export default function Home() {
 
     void loadPetState();
 
+    const channel = supabaseClient
+      .channel(`pet_state:${activeSpaceId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "pet_state",
+          filter: `space_id=eq.${activeSpaceId}`,
+        },
+        () => {
+          void loadPetState();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      void supabaseClient.removeChannel(channel);
+    };
+  }, [activeSpaceId]);
+
+  useEffect(() => {
+    if (!activeSpaceId || !currentUser) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const awardVisitXp = async () => {
+      const result = await applyPetAction(activeSpaceId, "visit", currentUser.id);
+      if (!isMounted || result.error || !result.petState) {
+        return;
+      }
+
+      setPetState(result.petState);
+      setSelectedPetStage(getStageFromStatus(result.petState.status));
+    };
+
+    void awardVisitXp();
+
     return () => {
       isMounted = false;
     };
-  }, [activeSpaceId]);
+  }, [activeSpaceId, currentUser]);
 
   useEffect(() => {
     const framesToPreload = new Set([
@@ -926,7 +972,14 @@ export default function Home() {
       return;
     }
 
+    const rewardResult = await applyPetAction(activeSpaceId, "note", currentUser.id);
+    if (rewardResult.petState) {
+      setPetState(rewardResult.petState);
+      setSelectedPetStage(getStageFromStatus(rewardResult.petState.status));
+    }
+
     setNotesStatus("ready");
+    setNotesMessage(rewardResult.error ? "Note saved, but pet XP could not be updated." : null);
     pendingNoteReactionRef.current = true;
     setDraft("");
     setIsNoteOpen(true);
@@ -974,8 +1027,16 @@ export default function Home() {
       return;
     }
 
+    const rewardResult = await applyPetAction(activeSpaceId, "calendar", currentUser.id);
+    if (rewardResult.petState) {
+      setPetState(rewardResult.petState);
+      setSelectedPetStage(getStageFromStatus(rewardResult.petState.status));
+    }
+
     setCalendarEventsStatus("ready");
-    setCalendarEventsMessage("Event saved.");
+    setCalendarEventsMessage(
+      rewardResult.error ? "Event saved, but pet XP could not be updated." : "Event saved.",
+    );
     setCalendarEventDraft("");
     setSelectedEventType("娱乐");
   };
@@ -1076,36 +1137,38 @@ export default function Home() {
 
     if (isDroppedOnPet) {
       triggerPetWater();
+      void waterPet();
     }
   };
 
   const activePetFrames = getActivePetFrames(selectedPetStage, petAnimation);
 
   const feedPet = async () => {
-    if (!supabase || !activeSpaceId) {
+    if (!activeSpaceId) {
       return;
     }
 
-    const nextNutrition = petState.nutrition + 1;
-    const nextStatus = getStatusFromNutrition(nextNutrition);
-    const { error } = await supabase
-      .from("pet_state")
-      .update({
-        Nutrition: nextNutrition,
-        Status: nextStatus,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("space_id", activeSpaceId);
-
-    if (error) {
+    const result = await applyPetAction(activeSpaceId, "feed", currentUser?.id ?? null);
+    if (result.error || !result.petState) {
       return;
     }
 
-    setPetState({
-      nutrition: nextNutrition,
-      status: nextStatus,
-    });
-    setSelectedPetStage(getStageFromStatus(nextStatus));
+    setPetState(result.petState);
+    setSelectedPetStage(getStageFromStatus(result.petState.status));
+  };
+
+  const waterPet = async () => {
+    if (!activeSpaceId) {
+      return;
+    }
+
+    const result = await applyPetAction(activeSpaceId, "water", currentUser?.id ?? null);
+    if (result.error || !result.petState) {
+      return;
+    }
+
+    setPetState(result.petState);
+    setSelectedPetStage(getStageFromStatus(result.petState.status));
   };
 
   return (
@@ -1240,7 +1303,8 @@ export default function Home() {
                             ))}
                           </section>
                           <p className={styles.authMeta}>
-                            Status {petState.status} · Nutrition {petState.nutrition}
+                            Status {petState.status} · Nutrition {petState.nutrition} · XP{" "}
+                            {formatPetXp(petState.xp)}
                           </p>
                         </div>
                       </section>
@@ -1721,7 +1785,7 @@ async function ensurePetStateForSpace(spaceId: string) {
 
   const { data: existingPetState, error: lookupError } = await supabase
     .from("pet_state")
-    .select('space_id, "Status", "Nutrition"')
+    .select('space_id, "Status", "Nutrition", xp')
     .eq("space_id", spaceId)
     .maybeSingle();
 
@@ -1730,11 +1794,12 @@ async function ensurePetStateForSpace(spaceId: string) {
   }
 
   if (!existingPetState) {
-    const initialPetState = { status: "0" as PetStatusValue, nutrition: 0 };
+    const initialPetState = { status: "0" as PetStatusValue, nutrition: 0, xp: 0 };
     const { error: insertError } = await supabase.from("pet_state").insert({
       space_id: spaceId,
       Status: initialPetState.status,
       Nutrition: initialPetState.nutrition,
+      xp: initialPetState.xp,
     });
 
     if (insertError) {
@@ -1745,6 +1810,7 @@ async function ensurePetStateForSpace(spaceId: string) {
   }
 
   const nutrition = Number(existingPetState.Nutrition ?? 0);
+  const xp = Number(existingPetState.xp ?? 0);
   const derivedStatus = getStatusFromNutrition(nutrition);
 
   if (existingPetState.Status !== derivedStatus) {
@@ -1767,6 +1833,37 @@ async function ensurePetStateForSpace(spaceId: string) {
     petState: {
       status: derivedStatus,
       nutrition,
+      xp,
+    },
+  };
+}
+
+async function applyPetAction(spaceId: string, action: PetAction, userId?: string | null) {
+  if (!supabase) {
+    return { error: "Supabase is not configured.", petState: null as PetState | null };
+  }
+
+  const { data, error } = await supabase.rpc("apply_pet_action", {
+    p_space_id: spaceId,
+    p_action: action,
+    p_user_id: userId ?? null,
+  });
+
+  if (error) {
+    return { error: error.message, petState: null as PetState | null };
+  }
+
+  const petSnapshot = Array.isArray(data) ? data[0] : data;
+  if (!petSnapshot) {
+    return { error: "Pet action completed without a state update.", petState: null as PetState | null };
+  }
+
+  return {
+    error: null,
+    petState: {
+      status: normalizePetStatusValue(petSnapshot.status),
+      nutrition: Number(petSnapshot.nutrition ?? 0),
+      xp: Number(petSnapshot.total_xp ?? 0),
     },
   };
 }
@@ -1785,6 +1882,18 @@ function getStatusFromNutrition(nutrition: number): PetStatusValue {
   }
 
   return "0";
+}
+
+function normalizePetStatusValue(value: string | null | undefined): PetStatusValue {
+  if (value === "1" || value === "2" || value === "3" || value === "pet") {
+    return value;
+  }
+
+  return "0";
+}
+
+function formatPetXp(value: number) {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
 }
 
 function getStageFromStatus(status: PetStatusValue): PetStageId {
