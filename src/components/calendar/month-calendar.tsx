@@ -139,19 +139,29 @@ export function MonthCalendar({
 
       <header className={styles.title} aria-label={calendarLabel}>
         {onPreviousMonth ? (
-          <button type="button" className={styles.titleButton} onClick={onPreviousMonth} aria-label="Previous month">
+          <button
+            type="button"
+            className={`${styles.titleButton} ${styles.titleButtonPrev}`}
+            onClick={onPreviousMonth}
+            aria-label="Previous month"
+          >
             Prev
           </button>
-        ) : <span className={styles.titleButtonPlaceholder} aria-hidden="true" />}
+        ) : null}
         <div className={styles.titleCopy}>
           <span className={styles.titleMonth}>{monthTitle}</span>
           <span className={styles.titleYear}>{yearTitle}</span>
         </div>
         {onNextMonth ? (
-          <button type="button" className={styles.titleButton} onClick={onNextMonth} aria-label="Next month">
+          <button
+            type="button"
+            className={`${styles.titleButton} ${styles.titleButtonNext}`}
+            onClick={onNextMonth}
+            aria-label="Next month"
+          >
             Next
           </button>
-        ) : <span className={styles.titleButtonPlaceholder} aria-hidden="true" />}
+        ) : null}
       </header>
 
       <div className={styles.body}>

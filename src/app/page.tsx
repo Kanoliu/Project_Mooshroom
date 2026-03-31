@@ -1426,21 +1426,24 @@ export default function Home() {
               onSelectDate={(isoDate) => setSelectedCalendarDate(isoDate)}
               onClose={() => setIsCalendarOpen(false)}
               onPreviousMonth={() => setCalendarViewDate((current) => shiftMonth(current, -1))}
-              onNextMonth={() => setCalendarViewDate((current) => shiftMonth(current, 1))}
-              footerContent={
-                <div className={styles.calendarFooterContent}>
-                  <div className={styles.calendarFooterHeading}>
-                    <p className={styles.calendarFooterEyebrow}>Selected day</p>
-                    <h2 className={styles.calendarFooterTitle}>
-                      {formatSelectedCalendarDate(selectedCalendarDate)}
-                    </h2>
-                  </div>
+                onNextMonth={() => setCalendarViewDate((current) => shiftMonth(current, 1))}
+                footerContent={
+                  <div className={styles.calendarFooterContent}>
+                    <form
+                      className={styles.calendarFooterForm}
+                      onSubmit={handleCalendarEventSubmit}
+                      onClick={(event) => {
+                        const target = event.target as HTMLElement;
 
-                  <form className={styles.calendarFooterForm} onSubmit={handleCalendarEventSubmit}>
-                    <div className={styles.calendarFooterControls}>
-                      <select
-                        value={selectedEventType}
-                        onChange={(event) => setSelectedEventType(event.target.value as EventType)}
+                        if (!target.closest("button, select, option")) {
+                          calendarEventInputRef.current?.focus({ preventScroll: true });
+                        }
+                      }}
+                    >
+                      <div className={styles.calendarFooterControls}>
+                        <select
+                          value={selectedEventType}
+                          onChange={(event) => setSelectedEventType(event.target.value as EventType)}
                         className={styles.calendarFooterSelect}
                         aria-label="Event type"
                       >
@@ -1460,15 +1463,15 @@ export default function Home() {
                       </button>
                     </div>
 
-                    <textarea
-                      ref={calendarEventInputRef}
-                      value={calendarEventDraft}
-                      onChange={(event) => setCalendarEventDraft(event.target.value)}
-                      className={styles.calendarFooterTextarea}
-                      rows={3}
-                      placeholder="Add an event for this day..."
-                    />
-                  </form>
+                      <textarea
+                        ref={calendarEventInputRef}
+                        value={calendarEventDraft}
+                        onChange={(event) => setCalendarEventDraft(event.target.value)}
+                        className={styles.calendarFooterTextarea}
+                        rows={4}
+                        placeholder="Add an event for this day..."
+                      />
+                    </form>
 
                   <div className={styles.calendarFooterList}>
                     {calendarEventsStatus === "loading" && !hasHydratedCalendarEvents ? (
@@ -1807,14 +1810,6 @@ function formatShortDate(date: string) {
   return new Date(date).toLocaleDateString("en-GB", {
     day: "numeric",
     month: "short",
-  });
-}
-
-function formatSelectedCalendarDate(date: string) {
-  return new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", {
-    weekday: "short",
-    day: "numeric",
-    month: "long",
   });
 }
 

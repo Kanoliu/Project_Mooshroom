@@ -36,11 +36,9 @@
   left: calc((var(--calendar-title-left) + 0.05) * 100%);
   width: calc(var(--calendar-title-width) * 100%);
   height: calc(var(--calendar-title-height) * 100%);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: clamp(0.2rem, 0.5vw, 0.5rem);
-  padding: 0.2em 0.5em 0;
+  display: grid;
+  place-items: center;
+  padding: 0.2em 0 0;
   text-align: center;
   color: #110b08;
   font-family: var(--font-calendar), var(--font-sans);
@@ -58,13 +56,13 @@
 }
 
 .titleButton,
-.titleButtonPlaceholder {
-  width: clamp(3.8rem, 9vw, 4.7rem);
-  min-height: clamp(2rem, 4vw, 2.35rem);
-  flex: 0 0 auto;
-}
-
-.titleButton {
+.titleButtonPrev,
+.titleButtonNext {
+  position: absolute;
+  top: 50%;
+  width: clamp(3.35rem, 7vw, 4rem);
+  min-height: clamp(1.85rem, 3.4vw, 2.1rem);
+  transform: translateY(-50%);
   border: 0;
   border-radius: 999px;
   background: rgba(248, 238, 215, 0.82);
@@ -79,8 +77,12 @@
   cursor: pointer;
 }
 
-.titleButtonPlaceholder {
-  visibility: hidden;
+.titleButtonPrev {
+  right: calc(100% + 0.35rem);
+}
+
+.titleButtonNext {
+  left: calc(100% + 0.35rem);
 }
 
 .titleMonth {
@@ -255,12 +257,10 @@
   }
 
   .titleButton,
-  .titleButtonPlaceholder {
-    width: 3.15rem;
-    min-height: 1.85rem;
-  }
-
-  .titleButton {
+  .titleButtonPrev,
+  .titleButtonNext {
+    width: 2.7rem;
+    min-height: 1.7rem;
     font-size: 0.64rem;
   }
 
