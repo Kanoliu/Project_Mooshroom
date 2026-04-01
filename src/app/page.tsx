@@ -23,6 +23,17 @@ type NoteItem = {
   createdAt: string;
 };
 
+type SpaceInventoryItem = {
+  id: string;
+  quantity: number;
+  itemId: string;
+  name: string;
+  type: string;
+  rarity: string;
+  description: string;
+  imageUrl: string;
+};
+
 type PetStatusValue = "0" | "1" | "2" | "3" | "pet";
 type EventType = "娱乐" | "办事" | "吃饭" | "随记";
 
@@ -33,6 +44,7 @@ type PetState = {
 };
 
 type PetAction = "visit" | "note" | "calendar" | "feed" | "water";
+type PetActionResult = { error: string | null; petState: PetState | null };
 
 type NotesState = {
   hasHydrated: boolean;
@@ -72,7 +84,7 @@ type UiDockSlot = {
   id: string;
   label: string;
   icon: string | null;
-  action: "settings" | "note" | "calendar" | "pending" | "empty";
+  action: "settings" | "note" | "calendar" | "backpack" | "pending" | "empty";
 };
 
 type DragState = {
@@ -88,6 +100,7 @@ type PetAnimation = "idle" | "note" | "petreact" | "eat" | "water" | "dig";
 type AuthStatus = "setup-required" | "idle" | "sending-link" | "syncing-space" | "ready" | "error";
 type NotesStatus = "idle" | "loading" | "saving" | "ready" | "error";
 type CalendarEventsStatus = "idle" | "loading" | "saving" | "ready" | "error";
+type InventoryStatus = "idle" | "loading" | "ready" | "error";
 
 const EVENT_TYPES: EventType[] = ["娱乐", "办事", "吃饭", "随记"];
 
@@ -226,7 +239,7 @@ const topUiSlots: UiDockSlot[] = [
   { id: "empty-left-2", label: "Empty slot", icon: null, action: "empty" },
   { id: "note", label: "Notes", icon: "/art/ui/Note.webp", action: "note" },
   { id: "calender", label: "Calendar", icon: "/art/ui/Calender.webp", action: "calendar" },
-  { id: "backpack", label: "Backpack", icon: "/art/ui/Backpack.webp", action: "pending" },
+  { id: "backpack", label: "Backpack", icon: "/art/ui/Backpack.webp", action: "backpack" },
   { id: "setting", label: "Settings", icon: "/art/ui/Setting.webp", action: "settings" },
 ];
 
@@ -255,7 +268,11 @@ function notesReducer(state: NotesState, action: NotesAction): NotesState {
 export default function Home() {
   const [isNoteOpen, setIsNoteOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [isBackpackOpen, setIsBackpackOpen] = useState(false);
   const [isAuthMenuOpen, setIsAuthMenuOpen] = useState(false);
+  const [isNoteEditing, setIsNoteEditing] = useState(false);
+  const [isCalendarEditing, setIsCalendarEditing] = useState(false);
+  const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [calendarViewDate, setCalendarViewDate] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
@@ -286,11 +303,11 @@ export default function Home() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
   const [notesStatus, setNotesStatus] = useState<NotesStatus>("idle");
-  const [notesMessage, setNotesMessage] = useState<string | null>(null);
   const [calendarEventsStatus, setCalendarEventsStatus] = useState<CalendarEventsStatus>("idle");
-  const [calendarEventsMessage, setCalendarEventsMessage] = useState<string | null>(null);
   const [calendarEvents, setCalendarEvents] = useState<CalendarEventItem[]>([]);
   const [hasHydratedCalendarEvents, setHasHydratedCalendarEvents] = useState(false);
+  const [inventoryStatus, setInventoryStatus] = useState<InventoryStatus>("idle");
+  const [inventoryItems, setInventoryItems] = useState<SpaceInventoryItem[]>([]);
   const [notesState, dispatch] = useReducer(notesReducer, {
     hasHydrated: false,
     notes: [],
@@ -332,7 +349,11 @@ export default function Home() {
       root.style.setProperty("--app-height", `${viewportHeight}px`);
       root.style.setProperty("--keyboard-inset", `${keyboardInset}px`);
 
-      if (keyboardInset === 0 && document.activeElement !== noteInputRef.current) {
+      if (
+        keyboardInset === 0 &&
+        document.activeElement !== noteInputRef.current &&
+        document.activeElement !== calendarEventInputRef.current
+      ) {
         resetWindowViewport();
       }
     };
@@ -369,11 +390,11 @@ export default function Home() {
         setActiveSpaceId(null);
         dispatch({ type: "reset" });
         setNotesStatus("idle");
-        setNotesMessage(null);
         setCalendarEvents([]);
         setHasHydratedCalendarEvents(false);
         setCalendarEventsStatus("idle");
-        setCalendarEventsMessage(null);
+        setInventoryItems([]);
+        setInventoryStatus("idle");
         setAuthStatus("idle");
         setAuthMessage(null);
         return;
@@ -431,7 +452,6 @@ export default function Home() {
       dispatch({ type: "reset" });
       statusTimeout = window.setTimeout(() => {
         setNotesStatus("error");
-        setNotesMessage("Supabase is not configured.");
       }, 0);
       return () => {
         if (statusTimeout !== null) {
@@ -444,7 +464,6 @@ export default function Home() {
       dispatch({ type: "reset" });
       statusTimeout = window.setTimeout(() => {
         setNotesStatus(currentUser ? "loading" : "idle");
-        setNotesMessage(currentUser ? "Preparing your shared notes." : "Sign in to see shared notes.");
       }, 0);
       return () => {
         if (statusTimeout !== null) {
@@ -458,8 +477,6 @@ export default function Home() {
 
     const loadNotes = async () => {
       setNotesStatus("loading");
-      setNotesMessage(null);
-
       const result = await fetchNotesForSpace(activeSpaceId);
       if (!isMounted) {
         return;
@@ -468,13 +485,11 @@ export default function Home() {
       if (result.error) {
         dispatch({ type: "hydrate", notes: [] });
         setNotesStatus("error");
-        setNotesMessage(result.error);
         return;
       }
 
       dispatch({ type: "hydrate", notes: result.notes });
       setNotesStatus("ready");
-      setNotesMessage(null);
     };
 
     void loadNotes();
@@ -512,7 +527,6 @@ export default function Home() {
         setCalendarEvents([]);
         setHasHydratedCalendarEvents(false);
         setCalendarEventsStatus("error");
-        setCalendarEventsMessage("Supabase is not configured.");
       }, 0);
       return () => {
         if (statusTimeout !== null) {
@@ -526,9 +540,6 @@ export default function Home() {
         setCalendarEvents([]);
         setHasHydratedCalendarEvents(false);
         setCalendarEventsStatus(currentUser ? "loading" : "idle");
-        setCalendarEventsMessage(
-          currentUser ? "Preparing your shared calendar." : "Sign in to see shared events.",
-        );
       }, 0);
       return () => {
         if (statusTimeout !== null) {
@@ -542,8 +553,6 @@ export default function Home() {
 
     const loadCalendarEvents = async () => {
       setCalendarEventsStatus("loading");
-      setCalendarEventsMessage(null);
-
       const result = await fetchCalendarEventsForSpace(activeSpaceId);
       if (!isMounted) {
         return;
@@ -553,14 +562,12 @@ export default function Home() {
         setCalendarEvents([]);
         setHasHydratedCalendarEvents(true);
         setCalendarEventsStatus("error");
-        setCalendarEventsMessage(result.error);
         return;
       }
 
       setCalendarEvents(result.events);
       setHasHydratedCalendarEvents(true);
       setCalendarEventsStatus("ready");
-      setCalendarEventsMessage(null);
     };
 
     void loadCalendarEvents();
@@ -636,6 +643,65 @@ export default function Home() {
         },
         () => {
           void loadPetState();
+        },
+      )
+      .subscribe();
+
+    return () => {
+      isMounted = false;
+      void supabaseClient.removeChannel(channel);
+    };
+  }, [activeSpaceId]);
+
+  useEffect(() => {
+    if (!activeSpaceId) {
+      const resetTimeout = window.setTimeout(() => {
+        setInventoryItems([]);
+        setInventoryStatus("idle");
+      }, 0);
+      return () => window.clearTimeout(resetTimeout);
+    }
+
+    let isMounted = true;
+
+    const loadInventory = async () => {
+      setInventoryStatus("loading");
+      const result = await fetchInventoryForSpace(activeSpaceId);
+      if (!isMounted) {
+        return;
+      }
+
+      if (result.error) {
+        setInventoryItems([]);
+        setInventoryStatus("error");
+        return;
+      }
+
+      setInventoryItems(result.items);
+      setInventoryStatus("ready");
+    };
+
+    void loadInventory();
+
+    if (!supabase) {
+      return () => {
+        isMounted = false;
+      };
+    }
+
+    const supabaseClient = supabase;
+    const channel = supabaseClient
+      .channel(`space_items:${activeSpaceId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "space_items",
+          filter: `space_id=eq.${activeSpaceId}`,
+        },
+        () => {
+          void loadInventory();
         },
       )
       .subscribe();
@@ -834,6 +900,7 @@ export default function Home() {
     if (document.activeElement === noteInputRef.current) {
       noteInputRef.current?.blur();
     }
+    setIsNoteEditing(false);
     resetWindowViewport();
 
     return undefined;
@@ -882,6 +949,11 @@ export default function Home() {
 
   useEffect(() => {
     if (!isCalendarOpen) {
+      if (document.activeElement === calendarEventInputRef.current) {
+        calendarEventInputRef.current?.blur();
+      }
+      setIsCalendarEditing(false);
+      resetWindowViewport();
       return;
     }
 
@@ -896,6 +968,21 @@ export default function Home() {
   }, [isCalendarOpen]);
 
   useEffect(() => {
+    if (!isBackpackOpen) {
+      return;
+    }
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsBackpackOpen(false);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isBackpackOpen]);
+
+  useEffect(() => {
     if (!isCalendarOpen) {
       return;
     }
@@ -908,6 +995,10 @@ export default function Home() {
   }, [isCalendarOpen, selectedCalendarDate]);
 
   const previewNotes = useMemo(() => notesState.notes.slice(0, 4), [notesState.notes]);
+  const selectedPreviewNote = useMemo(
+    () => previewNotes.find((note) => note.id === selectedNoteId) ?? previewNotes[0] ?? null,
+    [previewNotes, selectedNoteId],
+  );
   const selectedDateEvents = useMemo(
     () => calendarEvents.filter((item) => item.date === selectedCalendarDate),
     [calendarEvents, selectedCalendarDate],
@@ -916,6 +1007,19 @@ export default function Home() {
     () => formatCalendarEditorText(selectedDateEvents),
     [selectedDateEvents],
   );
+
+  useEffect(() => {
+    if (previewNotes.length === 0) {
+      if (selectedNoteId !== null) {
+        setSelectedNoteId(null);
+      }
+      return;
+    }
+
+    if (!previewNotes.some((note) => note.id === selectedNoteId)) {
+      setSelectedNoteId(previewNotes[0].id);
+    }
+  }, [previewNotes, selectedNoteId]);
 
   useEffect(() => {
     setCalendarEventDraft(selectedDateEventDraft);
@@ -1001,11 +1105,11 @@ export default function Home() {
     setCurrentUser(null);
     dispatch({ type: "reset" });
     setNotesStatus("idle");
-    setNotesMessage(null);
     setCalendarEvents([]);
     setHasHydratedCalendarEvents(false);
     setCalendarEventsStatus("idle");
-    setCalendarEventsMessage(null);
+    setInventoryItems([]);
+    setInventoryStatus("idle");
     setAuthStatus("idle");
     setAuthMessage(null);
     setIsAuthMenuOpen(false);
@@ -1016,15 +1120,10 @@ export default function Home() {
 
     const trimmed = draft.trim();
     if (!trimmed || !supabase || !currentUser || !activeSpaceId) {
-      if (!currentUser || !activeSpaceId) {
-        setNotesStatus("error");
-        setNotesMessage("Sign in first to post a note to the shared space.");
-      }
       return;
     }
 
     setNotesStatus("saving");
-    setNotesMessage(null);
 
     const optimisticNote = {
       id: crypto.randomUUID(),
@@ -1032,6 +1131,7 @@ export default function Home() {
       createdAt: new Date().toISOString(),
     };
     dispatch({ type: "add", note: optimisticNote });
+    setSelectedNoteId(optimisticNote.id);
 
     const { error } = await supabase.from("notes").insert({
       space_id: activeSpaceId,
@@ -1043,7 +1143,6 @@ export default function Home() {
       const result = await fetchNotesForSpace(activeSpaceId);
       dispatch({ type: "hydrate", notes: result.notes ?? [] });
       setNotesStatus("error");
-      setNotesMessage(error.message);
       return;
     }
 
@@ -1054,7 +1153,6 @@ export default function Home() {
     }
 
     setNotesStatus("ready");
-    setNotesMessage(rewardResult.error ? "Note saved, but pet XP could not be updated." : null);
     pendingNoteReactionRef.current = true;
     setDraft("");
     setIsNoteOpen(true);
@@ -1064,10 +1162,6 @@ export default function Home() {
     event.preventDefault();
 
     if (!supabase || !currentUser || !activeSpaceId || !selectedCalendarDate) {
-      if (!currentUser || !activeSpaceId) {
-        setCalendarEventsStatus("error");
-        setCalendarEventsMessage("Sign in first to edit the shared calendar.");
-      }
       return;
     }
 
@@ -1080,7 +1174,6 @@ export default function Home() {
     }));
 
     setCalendarEventsStatus("saving");
-    setCalendarEventsMessage(null);
 
     const previousEvents = calendarEvents;
     setCalendarEvents((current) =>
@@ -1103,7 +1196,6 @@ export default function Home() {
       setCalendarEvents(result.events ?? []);
       setHasHydratedCalendarEvents(true);
       setCalendarEventsStatus("error");
-      setCalendarEventsMessage(deleteError.message);
       return;
     }
 
@@ -1122,7 +1214,6 @@ export default function Home() {
         setCalendarEvents(result.events ?? []);
         setHasHydratedCalendarEvents(true);
         setCalendarEventsStatus("error");
-        setCalendarEventsMessage(insertError.message);
         return;
       }
     }
@@ -1137,13 +1228,6 @@ export default function Home() {
     }
 
     setCalendarEventsStatus("ready");
-    setCalendarEventsMessage(
-      parsedEvents.length === 0
-        ? "Events cleared for this day."
-        : rewardResult.error
-          ? "Events saved, but pet XP could not be updated."
-          : "Day events saved.",
-    );
     setSelectedEventType("娱乐");
   };
 
@@ -1198,11 +1282,7 @@ export default function Home() {
   const finishFoodDrag = (event: ReactPointerEvent<HTMLButtonElement>) => {
     const foodRect = foodButtonRef.current?.getBoundingClientRect();
     const petRect = petButtonRef.current?.getBoundingClientRect();
-    const isDroppedOnPet =
-      selectedPetStage === "pet" &&
-      foodRect &&
-      petRect &&
-      rectanglesOverlap(foodRect, petRect);
+    const isDroppedOnPet = foodRect && petRect && rectanglesOverlap(foodRect, petRect);
 
     if (foodDragRef.current?.pointerId === event.pointerId) {
       foodDragRef.current = null;
@@ -1430,6 +1510,7 @@ export default function Home() {
                     onClick={() => {
                       setIsNoteOpen((open) => !open);
                       setIsCalendarOpen(false);
+                      setIsBackpackOpen(false);
                       setIsAuthMenuOpen(false);
                     }}
                     aria-expanded={isNoteOpen}
@@ -1452,6 +1533,7 @@ export default function Home() {
                     onClick={() => {
                       setIsCalendarOpen((open) => !open);
                       setIsNoteOpen(false);
+                      setIsBackpackOpen(false);
                       setIsAuthMenuOpen(false);
                     }}
                     aria-expanded={isCalendarOpen}
@@ -1460,6 +1542,29 @@ export default function Home() {
                   >
                     <Image
                       src={slot.icon ?? "/art/ui/Calender.webp"}
+                      alt=""
+                      width={46}
+                      height={46}
+                      unoptimized
+                      className={styles.frameIcon}
+                    />
+                  </button>
+                ) : slot.action === "backpack" ? (
+                  <button
+                    type="button"
+                    className={styles.frameAction}
+                    onClick={() => {
+                      setIsBackpackOpen((open) => !open);
+                      setIsCalendarOpen(false);
+                      setIsNoteOpen(false);
+                      setIsAuthMenuOpen(false);
+                    }}
+                    aria-expanded={isBackpackOpen}
+                    aria-controls="backpack-panel"
+                    aria-label={isBackpackOpen ? "Close backpack" : "Open backpack"}
+                  >
+                    <Image
+                      src={slot.icon ?? "/art/ui/Backpack.webp"}
                       alt=""
                       width={46}
                       height={46}
@@ -1610,7 +1715,9 @@ export default function Home() {
             aria-modal="true"
             aria-label="Calendar"
             aria-hidden={!isCalendarOpen}
-            className={`${styles.calendarPanel} ${isCalendarOpen ? styles.calendarPanelOpen : ""}`}
+            className={`${styles.calendarPanel} ${isCalendarOpen ? styles.calendarPanelOpen : ""} ${
+              isCalendarEditing ? styles.calendarPanelEditing : ""
+            }`}
           >
             <MonthCalendar
               year={calendarViewDate.getFullYear()}
@@ -1661,24 +1768,100 @@ export default function Home() {
                         ref={calendarEventInputRef}
                         value={calendarEventDraft}
                         onChange={(event) => setCalendarEventDraft(event.target.value)}
+                        onFocus={() => setIsCalendarEditing(true)}
+                        onBlur={() => {
+                          setIsCalendarEditing(false);
+                          resetWindowViewport();
+                        }}
                         className={styles.calendarFooterTextarea}
                         rows={7}
                         placeholder="Write one event per line. Use [type] text to override the selected type."
                       />
                     </form>
 
-                  {calendarEventsMessage ? (
-                    <p
-                      className={`${styles.calendarFooterStatus} ${
-                        calendarEventsStatus === "error" ? styles.calendarFooterStatusError : ""
-                      }`}
-                    >
-                      {calendarEventsMessage}
-                    </p>
-                  ) : null}
                 </div>
               }
             />
+          </section>
+
+          <section
+            id="backpack-panel"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Backpack"
+            aria-hidden={!isBackpackOpen}
+            className={`${styles.backpackPanel} ${isBackpackOpen ? styles.backpackPanelOpen : ""}`}
+          >
+            <div className={styles.backpackShell}>
+              <header className={styles.backpackHeader}>
+                <div>
+                  <p className={styles.backpackEyebrow}>Shared storage</p>
+                  <h2 className={styles.backpackTitle}>Backpack shelf</h2>
+                </div>
+                <button
+                  type="button"
+                  className={styles.panelClose}
+                  onClick={() => setIsBackpackOpen(false)}
+                  aria-label="Close backpack"
+                >
+                  <span aria-hidden="true">x</span>
+                </button>
+              </header>
+
+              {inventoryStatus === "loading" ? (
+                <div className={styles.backpackEmpty}>
+                  <p>Loading items...</p>
+                  <span>Shared items in this space will appear on the shelf.</span>
+                </div>
+              ) : inventoryItems.length === 0 ? (
+                <div className={styles.backpackEmpty}>
+                  <p>No shared items yet.</p>
+                  <span>Add rows in `space_items` to place things on this shelf.</span>
+                </div>
+              ) : (
+                <div className={styles.backpackShelfGrid}>
+                  {inventoryItems.map((item) => (
+                    <article key={item.id} className={styles.backpackItemCard}>
+                      <div className={styles.backpackItemFrame}>
+                        {item.imageUrl ? (
+                          <img
+                            src={item.imageUrl}
+                            alt={item.name}
+                            className={styles.backpackItemImage}
+                            loading="lazy"
+                            draggable={false}
+                          />
+                        ) : (
+                          <div className={styles.backpackItemFallback} aria-hidden="true">
+                            {item.name.slice(0, 1).toUpperCase()}
+                          </div>
+                        )}
+                        <span className={styles.backpackQuantity}>x{item.quantity}</span>
+                      </div>
+                      <div className={styles.backpackItemMeta}>
+                        <p className={styles.backpackItemName}>{item.name}</p>
+                        <p className={styles.backpackItemTags}>
+                          {[item.type, item.rarity].filter(Boolean).join(" · ")}
+                        </p>
+                        {item.description ? (
+                          <p className={styles.backpackItemDescription}>{item.description}</p>
+                        ) : null}
+                      </div>
+                    </article>
+                  ))}
+                </div>
+              )}
+
+              {inventoryStatus === "error" ? (
+                <p className={`${styles.backpackStatus} ${styles.backpackStatusError}`}>
+                  Couldn&apos;t load space items from Supabase.
+                </p>
+              ) : (
+                <p className={styles.backpackStatus}>
+                  Showing {inventoryItems.length} item{inventoryItems.length === 1 ? "" : "s"} in this space.
+                </p>
+              )}
+            </div>
           </section>
 
           <section
@@ -1687,7 +1870,9 @@ export default function Home() {
             aria-modal="true"
             aria-label="Notes"
             aria-hidden={!isNoteOpen}
-              className={`${styles.notesPanel} ${isNoteOpen ? styles.notesPanelOpen : ""}`}
+              className={`${styles.notesPanel} ${isNoteOpen ? styles.notesPanelOpen : ""} ${
+                isNoteEditing ? styles.notesPanelEditing : ""
+              }`}
           >
             <Image
               src="/art/ui/note%20panel.webp"
@@ -1723,10 +1908,16 @@ export default function Home() {
                   </div>
                 ) : (
                   previewNotes.map((note, index) => (
-                    <article
+                    <button
+                      type="button"
                       key={note.id}
-                      className={styles.boardCard}
+                      className={`${styles.boardCard} ${
+                        selectedPreviewNote?.id === note.id ? styles.boardCardActive : ""
+                      }`}
                       style={getCardStyle(cardLayouts[index] ?? cardLayouts[0])}
+                      onClick={() => setSelectedNoteId(note.id)}
+                      aria-pressed={selectedPreviewNote?.id === note.id}
+                      aria-label={`Open note from ${formatShortDate(note.createdAt)}`}
                     >
                       <Image
                         src={(cardLayouts[index] ?? cardLayouts[0]).art}
@@ -1741,7 +1932,7 @@ export default function Home() {
                           {formatShortDate(note.createdAt)}
                         </time>
                       </div>
-                    </article>
+                    </button>
                   ))
                 )}
               </div>
@@ -1755,21 +1946,25 @@ export default function Home() {
                     rows={5}
                     value={draft}
                     onChange={(event) => setDraft(event.target.value)}
-                    onBlur={resetWindowViewport}
+                    onFocus={() => setIsNoteEditing(true)}
+                    onBlur={() => {
+                      setIsNoteEditing(false);
+                      resetWindowViewport();
+                    }}
                     placeholder="Write a little note..."
                   />
                   <button type="submit" className={styles.saveButton} disabled={isSaveDisabled}>
                     {notesStatus === "saving" ? "Saving..." : "Save"}
                   </button>
                 </div>
-                {notesMessage ? (
-                  <p
-                    className={`${styles.noteStatus} ${
-                      notesStatus === "error" ? styles.noteStatusError : ""
-                    }`}
-                  >
-                    {notesMessage}
-                  </p>
+                {selectedPreviewNote ? (
+                  <section className={styles.selectedNotePanel} aria-live="polite">
+                    <p className={styles.selectedNoteLabel}>Selected note</p>
+                    <p className={styles.selectedNoteContent}>{selectedPreviewNote.text}</p>
+                    <time className={styles.selectedNoteDate} dateTime={selectedPreviewNote.createdAt}>
+                      {formatShortDate(selectedPreviewNote.createdAt)}
+                    </time>
+                  </section>
                 ) : null}
               </form>
             </div>
@@ -1893,6 +2088,112 @@ async function fetchCalendarEventsForSpace(spaceId: string) {
   };
 }
 
+async function fetchInventoryForSpace(spaceId: string) {
+  if (!supabase) {
+    return { error: "Supabase is not configured.", items: [] as SpaceInventoryItem[] };
+  }
+
+  const inventoryResult = await fetchSpaceItemsRows(spaceId, "space_items");
+  const fallbackInventoryResult =
+    inventoryResult.error && inventoryResult.error.includes("relation")
+      ? await fetchSpaceItemsRows(spaceId, "space_item")
+      : inventoryResult;
+
+  if (fallbackInventoryResult.error) {
+    return { error: fallbackInventoryResult.error, items: [] as SpaceInventoryItem[] };
+  }
+
+  const inventoryRows = fallbackInventoryResult.rows;
+  const itemIds = Array.from(new Set(inventoryRows.map((row) => row.item_id).filter(Boolean)));
+
+  if (itemIds.length === 0) {
+    return { error: null, items: [] as SpaceInventoryItem[] };
+  }
+
+  const { data: itemsData, error: itemsError } = await supabase
+    .from("items")
+    .select("id, name, type, rarity, description, image_url")
+    .in("id", itemIds);
+
+  if (itemsError) {
+    return { error: itemsError.message, items: [] as SpaceInventoryItem[] };
+  }
+
+  const itemsById = new Map(
+    (itemsData ?? []).map((item) => [
+      item.id,
+      {
+        name: item.name ?? "Unknown item",
+        type: item.type ?? "",
+        rarity: item.rarity ?? "",
+        description: item.description ?? "",
+        imageUrl: item.image_url ?? "",
+      },
+    ]),
+  );
+
+  return {
+    error: null,
+    items: inventoryRows
+      .map((row) => {
+        const item = itemsById.get(row.item_id);
+        if (!item) {
+          return null;
+        }
+
+        return {
+          id: row.id,
+          itemId: row.item_id,
+          quantity: Number(row.quantity ?? 0),
+          name: item.name,
+          type: item.type,
+          rarity: item.rarity,
+          description: item.description,
+          imageUrl: item.imageUrl,
+        } satisfies SpaceInventoryItem;
+      })
+      .filter((item): item is SpaceInventoryItem => item !== null)
+      .sort((left, right) => {
+        if (right.quantity !== left.quantity) {
+          return right.quantity - left.quantity;
+        }
+
+        return left.name.localeCompare(right.name);
+      }),
+  };
+}
+
+async function fetchSpaceItemsRows(spaceId: string, tableName: "space_items" | "space_item") {
+  if (!supabase) {
+    return {
+      error: "Supabase is not configured.",
+      rows: [] as Array<{ id: string; item_id: string; quantity: number }>,
+    };
+  }
+
+  const { data, error } = await supabase
+    .from(tableName)
+    .select("id, item_id, quantity")
+    .eq("space_id", spaceId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    return {
+      error: error.message,
+      rows: [] as Array<{ id: string; item_id: string; quantity: number }>,
+    };
+  }
+
+  return {
+    error: null,
+    rows: (data ?? []).map((row) => ({
+      id: String(row.id),
+      item_id: String(row.item_id),
+      quantity: Number(row.quantity ?? 0),
+    })),
+  };
+}
+
 async function ensurePetStateForSpace(spaceId: string) {
   if (!supabase) {
     return { error: "Supabase is not configured.", petState: null as PetState | null };
@@ -1953,7 +2254,7 @@ async function ensurePetStateForSpace(spaceId: string) {
   };
 }
 
-async function applyPetAction(spaceId: string, action: PetAction, userId?: string | null) {
+async function applyPetAction(spaceId: string, action: PetAction, userId?: string | null): Promise<PetActionResult> {
   if (!supabase) {
     return { error: "Supabase is not configured.", petState: null as PetState | null };
   }
@@ -1964,21 +2265,77 @@ async function applyPetAction(spaceId: string, action: PetAction, userId?: strin
     p_user_id: userId ?? null,
   });
 
-  if (error) {
-    return { error: error.message, petState: null as PetState | null };
+  if (!error) {
+    const petSnapshot = Array.isArray(data) ? data[0] : data;
+    if (!petSnapshot) {
+      return { error: "Pet action completed without a state update.", petState: null as PetState | null };
+    }
+
+    return {
+      error: null,
+      petState: {
+        status: normalizePetStatusValue(petSnapshot.status),
+        nutrition: Number(petSnapshot.nutrition ?? 0),
+        xp: Number(petSnapshot.total_xp ?? 0),
+      },
+    };
   }
 
-  const petSnapshot = Array.isArray(data) ? data[0] : data;
-  if (!petSnapshot) {
-    return { error: "Pet action completed without a state update.", petState: null as PetState | null };
+  return applyPetActionFallback(spaceId, action, userId ?? null);
+}
+
+async function applyPetActionFallback(
+  spaceId: string,
+  action: PetAction,
+  userId?: string | null,
+): Promise<PetActionResult> {
+  if (!supabase) {
+    return { error: "Supabase is not configured.", petState: null };
+  }
+
+  const currentStateResult = await ensurePetStateForSpace(spaceId);
+  if (currentStateResult.error || !currentStateResult.petState) {
+    return currentStateResult;
+  }
+
+  const currentState = currentStateResult.petState;
+  const isDailyLimitedAction = action === "visit" || action === "feed" || action === "water";
+  const actionAlreadyClaimed = isDailyLimitedAction && hasClaimedDailyPetAction(spaceId, action, userId ?? null);
+  const xpDelta = actionAlreadyClaimed ? 0 : 1;
+  const nutritionDelta = action === "water" && !actionAlreadyClaimed ? 1 : 0;
+
+  if (xpDelta === 0 && nutritionDelta === 0) {
+    return { error: null, petState: currentState };
+  }
+
+  const nextNutrition = currentState.nutrition + nutritionDelta;
+  const nextStatus = getStatusFromNutrition(nextNutrition);
+  const nextXp = currentState.xp + xpDelta;
+
+  const { error } = await supabase
+    .from("pet_state")
+    .update({
+      xp: nextXp,
+      Nutrition: nextNutrition,
+      Status: nextStatus,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("space_id", spaceId);
+
+  if (error) {
+    return { error: error.message, petState: currentState };
+  }
+
+  if (isDailyLimitedAction) {
+    markDailyPetActionClaimed(spaceId, action, userId ?? null);
   }
 
   return {
     error: null,
     petState: {
-      status: normalizePetStatusValue(petSnapshot.status),
-      nutrition: Number(petSnapshot.nutrition ?? 0),
-      xp: Number(petSnapshot.total_xp ?? 0),
+      xp: nextXp,
+      nutrition: nextNutrition,
+      status: nextStatus,
     },
   };
 }
@@ -2009,6 +2366,26 @@ function normalizePetStatusValue(value: string | null | undefined): PetStatusVal
 
 function formatPetXp(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function hasClaimedDailyPetAction(spaceId: string, action: PetAction, userId?: string | null) {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  return window.localStorage.getItem(getDailyPetActionStorageKey(spaceId, action, userId)) === "1";
+}
+
+function markDailyPetActionClaimed(spaceId: string, action: PetAction, userId?: string | null) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(getDailyPetActionStorageKey(spaceId, action, userId), "1");
+}
+
+function getDailyPetActionStorageKey(spaceId: string, action: PetAction, userId?: string | null) {
+  return ["pet-action", spaceId, userId ?? "guest", getTodayDateValue(), action].join(":");
 }
 
 function getStageFromStatus(status: PetStatusValue): PetStageId {
