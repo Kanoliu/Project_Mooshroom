@@ -1957,15 +1957,6 @@ export default function Home() {
                     {notesStatus === "saving" ? "Saving..." : "Save"}
                   </button>
                 </div>
-                {selectedPreviewNote ? (
-                  <section className={styles.selectedNotePanel} aria-live="polite">
-                    <p className={styles.selectedNoteLabel}>Selected note</p>
-                    <p className={styles.selectedNoteContent}>{selectedPreviewNote.text}</p>
-                    <time className={styles.selectedNoteDate} dateTime={selectedPreviewNote.createdAt}>
-                      {formatShortDate(selectedPreviewNote.createdAt)}
-                    </time>
-                  </section>
-                ) : null}
               </form>
             </div>
           </section>
