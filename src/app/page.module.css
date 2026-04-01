@@ -285,8 +285,6 @@
 
 .frameAction:focus-visible,
 .panelClose:focus-visible,
-.saveButton:focus-visible,
-.noteInput:focus-visible,
 .authInput:focus-visible,
 .authButton:focus-visible,
 .resourceButton:focus-visible,
@@ -395,22 +393,6 @@
   backface-visibility: hidden;
   mix-blend-mode: screen;
   opacity: 0.92;
-}
-
-.notesPanel {
-  position: absolute;
-  left: 50%;
-  bottom: max(env(safe-area-inset-bottom, 0px), 0px);
-  z-index: 9;
-  width: min(calc(100% - 4px), 860px);
-  max-width: 860px;
-  aspect-ratio: 0.84;
-  opacity: 0;
-  pointer-events: none;
-  transform: translate(-50%, calc(100% + 20px));
-  transition:
-    transform 240ms ease,
-    opacity 240ms ease;
 }
 
 .calendarPanel {
@@ -905,31 +887,6 @@
   color: #9a2f2f;
 }
 
-.notesPanelOpen {
-  transform: translate(-50%, 0);
-  opacity: 1;
-  pointer-events: auto;
-}
-
-.notesPanelEditing {
-  transform: translate(-50%, calc(0px - min(var(--keyboard-inset, 0px), 220px) * 0.14));
-}
-
-.notesPanelBase {
-  object-fit: contain;
-  object-position: center;
-  filter: drop-shadow(0 22px 36px rgba(65, 47, 35, 0.25));
-}
-
-.notesPanelInner {
-  position: absolute;
-  inset: 11% 18% 15% 18%;
-  display: grid;
-  grid-template-rows: auto minmax(0, 0.36fr) minmax(0, 1.44fr);
-  gap: 8px;
-  color: #000;
-}
-
 .resourceButton {
   --drag-x: 0px;
   --drag-y: 0px;
@@ -960,216 +917,6 @@
 .resourceIcon {
   object-fit: contain;
   transform: scale(0.88);
-}
-
-.panelHeader {
-  position: relative;
-  display: flex;
-  justify-content: flex-end;
-  align-items: flex-start;
-  padding: 1.1rem 1.3rem 0 1.3rem;
-  min-height: 2.8rem;
-}
-
-.panelClose {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 48px;
-  min-height: 48px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: #000;
-  font: inherit;
-  font-size: 1.7rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.noteBoard {
-  position: relative;
-  min-height: 0;
-  height: 92px;
-  overflow: hidden;
-}
-
-.boardCard {
-  --card-rotate: 0deg;
-  --card-left: 0%;
-  --card-top: 0%;
-  --card-width: 36%;
-  --card-padding: 31% 16% 27% 14%;
-  position: absolute;
-  left: var(--card-left);
-  top: var(--card-top);
-  width: var(--card-width);
-  aspect-ratio: 1;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  transform: rotate(var(--card-rotate));
-  filter: drop-shadow(0 8px 12px rgba(85, 62, 42, 0.14));
-  cursor: pointer;
-  transition:
-    transform 180ms ease,
-    filter 180ms ease;
-}
-
-.boardCard:hover {
-  transform: rotate(var(--card-rotate)) translateY(-2px);
-}
-
-.boardCard:focus-visible {
-  outline: 2px solid rgba(132, 86, 54, 0.8);
-  outline-offset: 4px;
-  border-radius: 22px;
-}
-
-.boardCardActive {
-  filter:
-    drop-shadow(0 12px 18px rgba(85, 62, 42, 0.2))
-    drop-shadow(0 0 0 rgba(0, 0, 0, 0));
-}
-
-.boardCardActive .boardCardContent {
-  text-shadow: 0 0 1px rgba(255, 248, 236, 0.35);
-}
-
-.boardCardArt {
-  object-fit: contain;
-}
-
-.boardCardContent {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  align-content: start;
-  gap: 6px;
-  padding: var(--card-padding);
-  color: #362011;
-}
-
-.boardCardText {
-  display: -webkit-box;
-  overflow: hidden;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  font-size: 0.98rem;
-  font-weight: 600;
-  line-height: 1.22;
-}
-
-.boardCardDate {
-  font-size: 0.78rem;
-  color: rgba(54, 32, 17, 0.78);
-}
-
-.emptyBoard {
-  display: grid;
-  place-items: center;
-  gap: 6px;
-  min-height: 260px;
-  padding: 20px;
-  border-radius: 26px;
-  color: #000;
-  text-align: center;
-}
-
-.emptyBoard p {
-  font-size: 1rem;
-  font-weight: 600;
-}
-
-.emptyBoard span {
-  font-size: 0.88rem;
-  color: rgba(0, 0, 0, 0.76);
-}
-
-.noteComposer {
-  display: grid;
-  gap: 0;
-  align-self: stretch;
-  min-height: 0;
-  padding: 0 0.9rem calc(0.8rem + env(safe-area-inset-bottom, 0px));
-}
-
-.composerSurface {
-  position: relative;
-  display: block;
-  padding: 0;
-  width: 100%;
-  max-width: 100%;
-  height: 100%;
-  margin: 0 auto;
-  box-sizing: border-box;
-}
-
-.noteInput {
-  display: block;
-  width: 100%;
-  max-width: 100%;
-  height: 100%;
-  min-height: 280px;
-  resize: none;
-  border: 1px solid rgba(120, 78, 50, 0.38);
-  border-radius: 18px;
-  background: transparent;
-  box-shadow: none;
-  padding: 14px 112px 14px 16px;
-  font: inherit;
-  font-size: 0.92rem;
-  line-height: 1.45;
-  color: #000;
-  box-sizing: border-box;
-  overflow-y: auto;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-.noteInput::placeholder {
-  color: rgba(0, 0, 0, 0.58);
-}
-
-.saveButton {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 92px;
-  min-height: 38px;
-  padding: 0 16px;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(127, 82, 50, 0.14);
-  box-shadow:
-    0 10px 18px rgba(74, 49, 33, 0.14),
-    inset 0 0 0 1px rgba(111, 71, 45, 0.1);
-  color: #000;
-  font: inherit;
-  font-size: 0.88rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.saveButton:disabled {
-  opacity: 0.58;
-  cursor: not-allowed;
-}
-
-.noteStatus {
-  margin: 6px 0 0;
-  padding: 0 8px;
-  font-size: 0.78rem;
-  line-height: 1.35;
-  color: rgba(0, 0, 0, 0.72);
-}
-
-.noteStatusError {
-  color: #9a2f2f;
 }
 
 @media (max-width: 640px) {
@@ -1233,8 +980,7 @@
   .calendarDateInput,
   .calendarTextarea,
   .calendarFooterSelect,
-  .calendarFooterTextarea,
-  .noteInput {
+  .calendarFooterTextarea {
     font-size: 16px;
   }
 
@@ -1269,12 +1015,6 @@
     min-height: 34px;
     padding: 0 12px;
     font-size: 0.78rem;
-  }
-
-  .notesPanel {
-    width: min(calc(100% - 2px), 760px);
-    bottom: max(2px, env(safe-area-inset-bottom, 0px));
-    aspect-ratio: 0.82;
   }
 
   .calendarPanel {
@@ -1366,65 +1106,6 @@
 
   .calendarFooterTextarea {
     padding: 8px 8px 40px;
-  }
-
-  .notesPanelInner {
-    inset: 11% 17% calc(16% + var(--keyboard-inset, 0px) * 0.08) 17%;
-    grid-template-rows: auto minmax(0, 0.28fr) minmax(0, 1.56fr);
-    gap: 10px;
-  }
-
-  .notesPanelEditing {
-    transform: translate(-50%, calc(0px - min(var(--keyboard-inset, 0px), 240px) * 0.18));
-  }
-
-  .panelHeader {
-    padding: 0.8rem 0.8rem 0 0.8rem;
-    min-height: 2.2rem;
-  }
-
-  .panelClose {
-    min-width: 46px;
-    min-height: 46px;
-    font-size: 1.45rem;
-  }
-
-  .boardCardText {
-    font-size: 0.86rem;
-  }
-
-  .boardCardDate {
-    font-size: 0.7rem;
-  }
-
-  .noteInput {
-    width: 100%;
-    max-width: 100%;
-    height: 100%;
-    min-height: 240px;
-    padding: 12px 104px 12px 14px;
-    font-size: 16px;
-    line-height: 1.5;
-  }
-
-  .noteBoard {
-    height: 64px;
-  }
-
-  .composerSurface {
-    padding: 0;
-  }
-
-  .noteComposer {
-    padding: 0 0.7rem calc(0.9rem + env(safe-area-inset-bottom, 0px));
-  }
-
-  .saveButton {
-    right: 8px;
-    bottom: 8px;
-    min-width: 88px;
-    min-height: 36px;
-    font-size: 0.84rem;
   }
 
   .noteStatus {

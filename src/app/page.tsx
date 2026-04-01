@@ -14,6 +14,7 @@ import {
   useState,
 } from "react";
 import { MonthCalendar } from "@/components/calendar/month-calendar";
+import { NotePanel } from "@/components/note-panel";
 import { supabase } from "@/lib/supabase";
 import styles from "./page.module.css";
 
@@ -995,10 +996,6 @@ export default function Home() {
   }, [isCalendarOpen, selectedCalendarDate]);
 
   const previewNotes = useMemo(() => notesState.notes.slice(0, 4), [notesState.notes]);
-  const selectedPreviewNote = useMemo(
-    () => previewNotes.find((note) => note.id === selectedNoteId) ?? previewNotes[0] ?? null,
-    [previewNotes, selectedNoteId],
-  );
   const selectedDateEvents = useMemo(
     () => calendarEvents.filter((item) => item.date === selectedCalendarDate),
     [calendarEvents, selectedCalendarDate],
@@ -1864,116 +1861,32 @@ export default function Home() {
             </div>
           </section>
 
-          <section
-            id="notes-panel"
-            role="dialog"
-            aria-modal="true"
-            aria-label="Notes"
-            aria-hidden={!isNoteOpen}
-              className={`${styles.notesPanel} ${isNoteOpen ? styles.notesPanelOpen : ""} ${
-                isNoteEditing ? styles.notesPanelEditing : ""
-              }`}
-          >
-            <Image
-              src="/art/ui/note%20panel.webp"
-              alt=""
-              fill
-              priority={isNoteOpen}
-              unoptimized
-              className={styles.notesPanelBase}
-            />
-
-            <div className={styles.notesPanelInner}>
-              <header className={styles.panelHeader}>
-                <button
-                  type="button"
-                  className={styles.panelClose}
-                  onClick={() => setIsNoteOpen(false)}
-                  aria-label="Close notes"
-                >
-                  <span aria-hidden="true">x</span>
-                </button>
-              </header>
-
-              <div className={styles.noteBoard}>
-                {notesStatus === "loading" && !notesState.hasHydrated ? (
-                  <div className={styles.emptyBoard}>
-                    <p>Loading shared notes...</p>
-                    <span>Notes from everyone in this space will appear here.</span>
-                  </div>
-                ) : notesState.hasHydrated && previewNotes.length === 0 ? (
-                  <div className={styles.emptyBoard}>
-                    <p>No notes yet.</p>
-                    <span>The first note in this space will show up here.</span>
-                  </div>
-                ) : (
-                  previewNotes.map((note, index) => (
-                    <button
-                      type="button"
-                      key={note.id}
-                      className={`${styles.boardCard} ${
-                        selectedPreviewNote?.id === note.id ? styles.boardCardActive : ""
-                      }`}
-                      style={getCardStyle(cardLayouts[index] ?? cardLayouts[0])}
-                      onClick={() => setSelectedNoteId(note.id)}
-                      aria-pressed={selectedPreviewNote?.id === note.id}
-                      aria-label={`Open note from ${formatShortDate(note.createdAt)}`}
-                    >
-                      <Image
-                        src={(cardLayouts[index] ?? cardLayouts[0]).art}
-                        alt=""
-                        fill
-                        unoptimized
-                        className={styles.boardCardArt}
-                      />
-                      <div className={styles.boardCardContent}>
-                        <p className={styles.boardCardText}>{note.text}</p>
-                        <time className={styles.boardCardDate} dateTime={note.createdAt}>
-                          {formatShortDate(note.createdAt)}
-                        </time>
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-
-              <form className={styles.noteComposer} onSubmit={handleSubmit}>
-                <div className={styles.composerSurface}>
-                  <textarea
-                    ref={noteInputRef}
-                    id="note-input"
-                    className={styles.noteInput}
-                    rows={5}
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    onFocus={() => setIsNoteEditing(true)}
-                    onBlur={() => {
-                      setIsNoteEditing(false);
-                      resetWindowViewport();
-                    }}
-                    placeholder="Write a little note..."
-                  />
-                  <button type="submit" className={styles.saveButton} disabled={isSaveDisabled}>
-                    {notesStatus === "saving" ? "Saving..." : "Save"}
-                  </button>
-                </div>
-              </form>
-            </div>
-          </section>
+          <NotePanel
+            isOpen={isNoteOpen}
+            isEditing={isNoteEditing}
+            notesStatus={notesStatus}
+            hasHydrated={notesState.hasHydrated}
+            previewNotes={previewNotes}
+            selectedNoteId={selectedNoteId}
+            cardLayouts={cardLayouts}
+            draft={draft}
+            isSaveDisabled={isSaveDisabled}
+            noteInputRef={noteInputRef}
+            onClose={() => setIsNoteOpen(false)}
+            onSelectNote={setSelectedNoteId}
+            onSubmit={handleSubmit}
+            onDraftChange={setDraft}
+            onInputFocus={() => setIsNoteEditing(true)}
+            onInputBlur={() => {
+              setIsNoteEditing(false);
+              resetWindowViewport();
+            }}
+            formatShortDate={formatShortDate}
+          />
         </div>
       </section>
     </main>
   );
-}
-
-function getCardStyle(layout: CardLayout): CSSProperties {
-  return {
-    "--card-rotate": layout.rotate,
-    "--card-left": layout.left,
-    "--card-top": layout.top,
-    "--card-width": layout.width,
-    "--card-padding": layout.padding,
-  } as CSSProperties;
 }
 
 async function ensureDefaultSpaceMembership(userId: string) {
