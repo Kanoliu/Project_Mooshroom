@@ -529,9 +529,9 @@ export default function Home() {
     }
 
     if (!activeSpaceId) {
-      dispatch({ type: "reset" });
+      dispatch({ type: "hydrate", notes: [] });
       statusTimeout = window.setTimeout(() => {
-        setNotesStatus(currentUser ? "loading" : "idle");
+        setNotesStatus(currentUser ? "ready" : "idle");
       }, 0);
       return () => {
         if (statusTimeout !== null) {
@@ -606,8 +606,8 @@ export default function Home() {
     if (!activeSpaceId) {
       statusTimeout = window.setTimeout(() => {
         setCalendarEvents([]);
-        setHasHydratedCalendarEvents(false);
-        setCalendarEventsStatus(currentUser ? "loading" : "idle");
+        setHasHydratedCalendarEvents(true);
+        setCalendarEventsStatus(currentUser ? "ready" : "idle");
       }, 0);
       return () => {
         if (statusTimeout !== null) {
@@ -1242,11 +1242,14 @@ export default function Home() {
     setAuthStatus("sending-link");
     setAuthMessage(null);
 
+    const authRedirectUrl = getAuthRedirectUrl();
     const { error } = await supabase.auth.signInWithOtp({
       email: trimmedEmail,
-      options: {
-        emailRedirectTo: getAuthRedirectUrl(),
-      },
+      options: authRedirectUrl
+        ? {
+            emailRedirectTo: authRedirectUrl,
+          }
+        : undefined,
     });
 
     if (error) {
@@ -2784,8 +2787,12 @@ function getAuthRedirectUrl() {
   }
 
   if (typeof window !== "undefined") {
-    return window.location.origin;
+    const { hostname, origin } = window.location;
+
+    if (hostname === "localhost" || hostname === "127.0.0.1") {
+      return origin;
+    }
   }
 
-  return "https://project-mooshroom.vercel.app";
+  return null;
 }
