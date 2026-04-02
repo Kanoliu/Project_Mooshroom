@@ -799,6 +799,13 @@ export default function Home() {
     };
   }, [activeSpaceId, currentUser]);
 
+  const sceneAssetUrls = useMemo(() => {
+    const stageFramesToPreload =
+      activeSpaceId && !hasResolvedPetStage ? [] : getActivePetFrames(selectedPetStage, "idle");
+
+    return Array.from(new Set([...BASE_SCENE_ASSET_URLS, ...stageFramesToPreload]));
+  }, [activeSpaceId, hasResolvedPetStage, selectedPetStage]);
+
   useEffect(() => {
     if (activeSpaceId && !hasResolvedPetStage) {
       setIsInitialSceneReady(false);
@@ -1116,13 +1123,6 @@ export default function Home() {
       isEditing: isNoteEditing,
     });
   }, [activeSpaceId, draft, isNoteEditing]);
-
-  const sceneAssetUrls = useMemo(() => {
-    const stageFramesToPreload =
-      activeSpaceId && !hasResolvedPetStage ? [] : getActivePetFrames(selectedPetStage, "idle");
-
-    return Array.from(new Set([...BASE_SCENE_ASSET_URLS, ...stageFramesToPreload]));
-  }, [activeSpaceId, hasResolvedPetStage, selectedPetStage]);
 
   const previewNotes = useMemo(() => notesState.notes.slice(0, 4), [notesState.notes]);
   const loadingFrameIcon = useMemo(
