@@ -1,5 +1,5 @@
-const CACHE_NAME = "project-mooshroom-v2";
-const APP_SHELL = ["/", "/manifest.webmanifest", "/icon.svg"];
+const CACHE_NAME = "project-mooshroom-v3";
+const APP_SHELL = ["/", "/manifest.webmanifest", "/icon.webp"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

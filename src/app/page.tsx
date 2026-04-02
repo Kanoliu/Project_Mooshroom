@@ -240,7 +240,17 @@ const topUiSlots: UiDockSlot[] = [
   { id: "setting", label: "Settings", icon: "/art/ui/Setting.webp", action: "settings" },
 ];
 
-const SCENE_ASSET_URLS = Array.from(
+const LOADING_FRAME_ICONS = [
+  "/art/ui/Food.webp",
+  "/art/ui/Kettle.webp",
+  "/art/ui/Backpack.webp",
+  "/art/ui/shovel.webp",
+  "/art/ui/Note.webp",
+  "/art/ui/Calender.webp",
+  "/art/ui/Setting.webp",
+] as const;
+
+const BASE_SCENE_ASSET_URLS = Array.from(
   new Set([
     "/art/backgrounds/background.png",
     "/art/ui/UI%20frame.webp",
@@ -253,15 +263,6 @@ const SCENE_ASSET_URLS = Array.from(
     "/art/ui/note%20panel.webp",
     ...cardLayouts.map((layout) => layout.art),
     ...Object.values(EVENT_TYPE_STAMP_ART),
-    ...petFrames,
-    ...petNoteFrames,
-    ...petReactFrames,
-    ...petEatFrames,
-    ...petWaterFrames,
-    ...waterEffectFrames,
-    ...petDigFrames,
-    ...stage3PetReactFrames,
-    ...Object.values(petStageFrames).flat(),
   ]),
 );
 
@@ -321,6 +322,7 @@ export default function Home() {
     nutrition: 0,
     xp: 0,
   });
+  const [hasResolvedPetStage, setHasResolvedPetStage] = useState(false);
   const [authStatus, setAuthStatus] = useState<AuthStatus>(
     supabase ? "idle" : "setup-required",
   );
@@ -351,6 +353,12 @@ export default function Home() {
     setIsCalendarOpen(false);
     setIsBackpackOpen(false);
     setIsAuthMenuOpen(false);
+  };
+
+  const closeNotesPanel = () => {
+    setIsNoteOpen(false);
+    setIsNoteEditing(false);
+    setDraft("");
   };
 
   const openCalendarPanel = () => {
@@ -655,6 +663,7 @@ export default function Home() {
       const resetTimeout = window.setTimeout(() => {
         setPetState({ status: "0", nutrition: 0, xp: 0 });
         setSelectedPetStage("stage0");
+        setHasResolvedPetStage(true);
       }, 0);
       return () => window.clearTimeout(resetTimeout);
     }
@@ -663,12 +672,14 @@ export default function Home() {
       const resetTimeout = window.setTimeout(() => {
         setPetState({ status: "0", nutrition: 0, xp: 0 });
         setSelectedPetStage("stage0");
+        setHasResolvedPetStage(true);
       }, 0);
       return () => window.clearTimeout(resetTimeout);
     }
 
     let isMounted = true;
     const supabaseClient = supabase;
+    setHasResolvedPetStage(false);
 
     const loadPetState = async () => {
       const result = await ensurePetStateForSpace(activeSpaceId);
@@ -680,6 +691,7 @@ export default function Home() {
       setSelectedPetStage(getStageFromStatus(result.petState.status));
       setPetAnimation("idle");
       setCurrentFrame(0);
+      setHasResolvedPetStage(true);
     };
 
     void loadPetState();
@@ -790,6 +802,12 @@ export default function Home() {
   }, [activeSpaceId, currentUser]);
 
   useEffect(() => {
+    if (activeSpaceId && !hasResolvedPetStage) {
+      setIsInitialSceneReady(false);
+      setPreloadedAssetCount(0);
+      return;
+    }
+
     let isCancelled = false;
     let loadedCount = 0;
 
@@ -802,7 +820,7 @@ export default function Home() {
 
       setPreloadedAssetCount(loadedCount);
 
-      if (loadedCount >= SCENE_ASSET_URLS.length) {
+      if (loadedCount >= sceneAssetUrls.length) {
         setIsInitialSceneReady(true);
       }
     };
@@ -810,7 +828,7 @@ export default function Home() {
     setIsInitialSceneReady(false);
     setPreloadedAssetCount(0);
 
-    SCENE_ASSET_URLS.forEach((src) => {
+    sceneAssetUrls.forEach((src) => {
       const image = new window.Image();
       let hasSettled = false;
 
@@ -838,7 +856,7 @@ export default function Home() {
     return () => {
       isCancelled = true;
     };
-  }, []);
+  }, [activeSpaceId, hasResolvedPetStage, sceneAssetUrls]);
 
   useLayoutEffect(() => {
     const isPreviewStage = selectedPetStage !== "pet";
@@ -981,6 +999,7 @@ export default function Home() {
       noteInputRef.current?.blur();
     }
     setIsNoteEditing(false);
+    setDraft("");
     resetWindowViewport();
 
     return undefined;
@@ -1074,7 +1093,18 @@ export default function Home() {
     return () => window.clearTimeout(focusTimeout);
   }, [isCalendarOpen, selectedCalendarDate]);
 
+  const sceneAssetUrls = useMemo(() => {
+    const stageFramesToPreload =
+      activeSpaceId && !hasResolvedPetStage ? [] : getActivePetFrames(selectedPetStage, "idle");
+
+    return Array.from(new Set([...BASE_SCENE_ASSET_URLS, ...stageFramesToPreload]));
+  }, [activeSpaceId, hasResolvedPetStage, selectedPetStage]);
+
   const previewNotes = useMemo(() => notesState.notes.slice(0, 4), [notesState.notes]);
+  const loadingFrameIcon = useMemo(
+    () => LOADING_FRAME_ICONS[Math.floor(Math.random() * LOADING_FRAME_ICONS.length)],
+    [],
+  );
   const selectedDateEvents = useMemo(
     () => calendarEvents.filter((item) => item.date === selectedCalendarDate),
     [calendarEvents, selectedCalendarDate],
@@ -1450,9 +1480,9 @@ export default function Home() {
     ? waterEffectFrames[currentWaterEffectFrame] ?? null
     : null;
   const preloadPercent =
-    SCENE_ASSET_URLS.length === 0
+    sceneAssetUrls.length === 0
       ? 100
-      : Math.round((preloadedAssetCount / SCENE_ASSET_URLS.length) * 100);
+      : Math.round((preloadedAssetCount / sceneAssetUrls.length) * 100);
 
   const feedPet = async () => {
     if (!activeSpaceId) {
@@ -1486,20 +1516,29 @@ export default function Home() {
     <main className={styles.page}>
       <section className={styles.phoneShell}>
         <div className={styles.scene}>
-          {!isInitialSceneReady ? (
-            <div className={styles.loadingScreen} role="status" aria-live="polite">
-              <div className={styles.loadingPanel}>
-                <Image
-                  src="/art/ui/UI%20frame.webp"
-                  alt=""
-                  width={116}
-                  height={114}
-                  unoptimized
-                  className={styles.loadingIconFrame}
-                />
-                <div className={styles.loadingMeter} aria-hidden="true">
-                  <span
-                    className={styles.loadingMeterFill}
+            {!isInitialSceneReady ? (
+              <div className={styles.loadingScreen} role="status" aria-live="polite">
+                <div className={styles.loadingPanel}>
+                  <div className={styles.loadingIconWrap}>
+                    <Image
+                      src="/art/ui/UI%20frame.webp"
+                      alt=""
+                      width={116}
+                      height={114}
+                      unoptimized
+                      className={styles.loadingIconFrame}
+                    />
+                    <img
+                      src={loadingFrameIcon}
+                      alt=""
+                      aria-hidden="true"
+                      className={styles.loadingFrameIcon}
+                      draggable={false}
+                    />
+                  </div>
+                  <div className={styles.loadingMeter} aria-hidden="true">
+                    <span
+                      className={styles.loadingMeterFill}
                     style={{ width: `${preloadPercent}%` }}
                   />
                 </div>
@@ -1652,14 +1691,14 @@ export default function Home() {
                 ) : slot.action === "note" ? (
                   <button
                     ref={noteButtonRef}
-                    type="button"
-                    className={styles.frameAction}
-                    onClick={() => {
-                      if (isNoteOpen) {
-                        setIsNoteOpen(false);
-                        return;
-                      }
-                      openNotesPanel();
+                      type="button"
+                      className={styles.frameAction}
+                      onClick={() => {
+                        if (isNoteOpen) {
+                          closeNotesPanel();
+                          return;
+                        }
+                        openNotesPanel();
                     }}
                     aria-expanded={isNoteOpen}
                     aria-controls="notes-panel"
@@ -2006,8 +2045,8 @@ export default function Home() {
             </div>
           </section>
 
-          <NotePanel
-            isOpen={isNoteOpen}
+            <NotePanel
+              isOpen={isNoteOpen}
             isEditing={isNoteEditing}
             notesStatus={notesStatus}
             hasHydrated={notesState.hasHydrated}
@@ -2017,26 +2056,26 @@ export default function Home() {
             draft={draft}
             isSaveDisabled={isSaveDisabled}
             noteInputRef={noteInputRef}
-            onClose={() => setIsNoteOpen(false)}
-            onSelectNote={(noteId) => {
-              setSelectedNoteId(noteId);
-              setIsNoteEditing(false);
-            }}
-            onStartEditing={() => {
-              setIsNoteEditing(true);
-              window.setTimeout(() => {
-                noteInputRef.current?.focus({ preventScroll: true });
+              onClose={closeNotesPanel}
+              onSelectNote={(noteId) => {
+                setSelectedNoteId(noteId);
+                setIsNoteEditing(false);
+                setDraft("");
+              }}
+              onStartEditing={() => {
+                setIsNoteEditing(true);
+                window.setTimeout(() => {
+                  noteInputRef.current?.focus({ preventScroll: true });
               }, 0);
             }}
-            onSubmit={handleSubmit}
-            onDraftChange={setDraft}
-            onInputFocus={() => setIsNoteEditing(true)}
-            onInputBlur={() => {
-              setIsNoteEditing(false);
-              resetWindowViewport();
-            }}
-            formatShortDate={formatShortDate}
-          />
+              onSubmit={handleSubmit}
+              onDraftChange={setDraft}
+              onInputFocus={() => setIsNoteEditing(true)}
+              onInputBlur={() => {
+                resetWindowViewport();
+              }}
+              formatShortDate={formatShortDate}
+            />
         </div>
       </section>
     </main>
