@@ -480,7 +480,9 @@ export default function Home() {
       setActiveSpaceId(result.spaceId);
       setCurrentSpaceName(result.spaceName);
       setAuthStatus("ready");
-      setAuthMessage(`Space: ${result.spaceName}.`);
+      setAuthMessage(
+        result.spaceName ? `Space: ${result.spaceName}.` : "Enter an invite code to join a shared space.",
+      );
       setHasResolvedAuthSession(true);
     };
 
@@ -1672,14 +1674,14 @@ export default function Home() {
                                   ? "Space: syncing..."
                                   : currentSpaceName
                                     ? `Space: ${currentSpaceName}`
-                                    : "Space: unknown"}
+                                    : "No space joined yet"}
                               </p>
                             </div>
                           </>
                         ) : (
                           <form className={styles.authForm} onSubmit={handleEmailSignIn}>
                             <label className={styles.authLabel} htmlFor="email-input">
-                              Enter your email to join the default space.
+                              Enter your email to sign in with a magic link.
                             </label>
                             <input
                               id="email-input"
@@ -1724,7 +1726,7 @@ export default function Home() {
                             <p className={styles.authSectionTitle}>Join with invite code</p>
                             <form className={styles.authForm} onSubmit={handleJoinSpace}>
                               <label className={styles.authLabel} htmlFor="invite-code-input">
-                                Enter an invite code to switch to another shared space.
+                                Enter an invite code to join a shared space.
                               </label>
                               <input
                                 id="invite-code-input"
@@ -2158,32 +2160,11 @@ async function ensureInitialSpaceMembership(userId: string): Promise<SpaceMember
     if (!preferredResult.error && preferredResult.spaceId) {
       return preferredResult;
     }
+
+    clearPreferredSpaceId(userId);
   }
 
-  return ensureDefaultSpaceMembership(userId);
-}
-
-async function ensureDefaultSpaceMembership(userId: string): Promise<SpaceMembershipResult> {
-  if (!supabase) {
-    return { error: "Supabase is not configured.", spaceId: null, spaceName: null };
-  }
-
-  const { data: spaces, error: spaceError } = await supabase
-    .from("spaces")
-    .select("id, name")
-    .order("created_at", { ascending: true })
-    .limit(1);
-
-  if (spaceError) {
-    return { error: spaceError.message, spaceId: null, spaceName: null };
-  }
-
-  const defaultSpace = spaces?.[0];
-  if (!defaultSpace) {
-    return { error: "No default space exists in Supabase yet.", spaceId: null, spaceName: null };
-  }
-
-  return ensureSpaceMembershipById(userId, defaultSpace.id, defaultSpace.name);
+  return { error: null, spaceId: null, spaceName: null };
 }
 
 async function ensureSpaceMembershipByInviteCode(
