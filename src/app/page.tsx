@@ -235,6 +235,31 @@ const topUiSlots: UiDockSlot[] = [
   { id: "setting", label: "Settings", icon: "/art/ui/Setting.webp", action: "settings" },
 ];
 
+const SCENE_ASSET_URLS = Array.from(
+  new Set([
+    "/art/backgrounds/background.png",
+    "/art/ui/UI%20frame.webp",
+    "/art/ui/Note.webp",
+    "/art/ui/Calender.webp",
+    "/art/ui/Backpack.webp",
+    "/art/ui/Setting.webp",
+    "/art/ui/Kettle.webp",
+    "/art/ui/Food.webp",
+    "/art/ui/note%20panel.webp",
+    ...cardLayouts.map((layout) => layout.art),
+    ...Object.values(EVENT_TYPE_STAMP_ART),
+    ...petFrames,
+    ...petNoteFrames,
+    ...petReactFrames,
+    ...petEatFrames,
+    ...petWaterFrames,
+    ...waterEffectFrames,
+    ...petDigFrames,
+    ...stage3PetReactFrames,
+    ...Object.values(petStageFrames).flat(),
+  ]),
+);
+
 function notesReducer(state: NotesState, action: NotesAction): NotesState {
   switch (action.type) {
     case "hydrate":
@@ -258,6 +283,8 @@ function notesReducer(state: NotesState, action: NotesAction): NotesState {
 }
 
 export default function Home() {
+  const [isInitialSceneReady, setIsInitialSceneReady] = useState(false);
+  const [preloadedAssetCount, setPreloadedAssetCount] = useState(0);
   const [isNoteOpen, setIsNoteOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isBackpackOpen, setIsBackpackOpen] = useState(false);
@@ -295,6 +322,7 @@ export default function Home() {
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(null);
+  const [currentSpaceName, setCurrentSpaceName] = useState<string | null>(null);
   const [notesStatus, setNotesStatus] = useState<NotesStatus>("idle");
   const [calendarEventsStatus, setCalendarEventsStatus] = useState<CalendarEventsStatus>("idle");
   const [calendarEvents, setCalendarEvents] = useState<CalendarEventItem[]>([]);
@@ -381,6 +409,7 @@ export default function Home() {
 
       if (!user) {
         setActiveSpaceId(null);
+        setCurrentSpaceName(null);
         dispatch({ type: "reset" });
         setNotesStatus("idle");
         setCalendarEvents([]);
@@ -402,14 +431,16 @@ export default function Home() {
 
       if (result.error) {
         setActiveSpaceId(null);
+        setCurrentSpaceName(null);
         setAuthStatus("error");
         setAuthMessage(result.error);
         return;
       }
 
       setActiveSpaceId(result.spaceId);
+      setCurrentSpaceName(result.spaceName);
       setAuthStatus("ready");
-      setAuthMessage(`Signed in to ${result.spaceName}.`);
+      setAuthMessage(`Space: ${result.spaceName}.`);
     };
 
     void supabase.auth.getUser().then(({ data, error }) => {
@@ -730,24 +761,55 @@ export default function Home() {
   }, [activeSpaceId, currentUser]);
 
   useEffect(() => {
-    const framesToPreload = new Set([
-      ...petFrames,
-      ...petNoteFrames,
-      ...petReactFrames,
-      ...petEatFrames,
-      ...petWaterFrames,
-      ...waterEffectFrames,
-      ...petDigFrames,
-      ...(selectedPetStage === "stage3" ? stage3PetReactFrames : []),
-      ...petStageFrames[selectedPetStage],
-    ]);
+    let isCancelled = false;
+    let loadedCount = 0;
 
-    framesToPreload.forEach((src) => {
+    const markAssetComplete = () => {
+      loadedCount += 1;
+
+      if (isCancelled) {
+        return;
+      }
+
+      setPreloadedAssetCount(loadedCount);
+
+      if (loadedCount >= SCENE_ASSET_URLS.length) {
+        setIsInitialSceneReady(true);
+      }
+    };
+
+    setIsInitialSceneReady(false);
+    setPreloadedAssetCount(0);
+
+    SCENE_ASSET_URLS.forEach((src) => {
       const image = new window.Image();
+      let hasSettled = false;
+
+      const settle = () => {
+        if (hasSettled) {
+          return;
+        }
+
+        hasSettled = true;
+        image.onload = null;
+        image.onerror = null;
+        markAssetComplete();
+      };
+
       image.decoding = "async";
+      image.onload = settle;
+      image.onerror = settle;
       image.src = src;
+
+      if (image.complete) {
+        settle();
+      }
     });
-  }, [selectedPetStage]);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, []);
 
   useLayoutEffect(() => {
     const isPreviewStage = selectedPetStage !== "pet";
@@ -1088,6 +1150,7 @@ export default function Home() {
 
     clearPreferredSpaceId();
     setActiveSpaceId(null);
+    setCurrentSpaceName(null);
     setCurrentUser(null);
     dispatch({ type: "reset" });
     setNotesStatus("idle");
@@ -1132,9 +1195,10 @@ export default function Home() {
       setActiveSpaceId(result.spaceId);
     }
 
+    setCurrentSpaceName(result.spaceName);
     setInviteCode("");
     setAuthStatus("ready");
-    setAuthMessage(`Joined ${result.spaceName}.`);
+    setAuthMessage(`Space: ${result.spaceName}.`);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1356,6 +1420,10 @@ export default function Home() {
   const activeWaterEffectFrame = isWaterEffectPlaying
     ? waterEffectFrames[currentWaterEffectFrame] ?? null
     : null;
+  const preloadPercent =
+    SCENE_ASSET_URLS.length === 0
+      ? 100
+      : Math.round((preloadedAssetCount / SCENE_ASSET_URLS.length) * 100);
 
   const feedPet = async () => {
     if (!activeSpaceId) {
@@ -1389,6 +1457,27 @@ export default function Home() {
     <main className={styles.page}>
       <section className={styles.phoneShell}>
         <div className={styles.scene}>
+          {!isInitialSceneReady ? (
+            <div className={styles.loadingScreen} role="status" aria-live="polite">
+              <div className={styles.loadingPanel}>
+                <Image
+                  src="/art/ui/UI%20frame.webp"
+                  alt=""
+                  width={116}
+                  height={114}
+                  unoptimized
+                  className={styles.loadingIconFrame}
+                />
+                <div className={styles.loadingMeter} aria-hidden="true">
+                  <span
+                    className={styles.loadingMeterFill}
+                    style={{ width: `${preloadPercent}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           <Image
             src="/art/backgrounds/background.png"
             alt="Warm cottage background for the pet room."
@@ -1433,22 +1522,22 @@ export default function Home() {
 
                     {isAuthMenuOpen ? (
                       <section id="auth-menu" className={styles.authPanel} aria-label="Settings panel">
-                        <p className={styles.authEyebrow}>Shared space</p>
                         {currentUser ? (
                           <>
-                            <p className={styles.authTitle}>{currentUser.email}</p>
-                            <p className={styles.authMeta}>
-                              {activeSpaceId
-                                ? `Connected to space ${shortId(activeSpaceId)}`
-                                : "Syncing space..."}
-                            </p>
-                            <button
-                              type="button"
-                              className={styles.authButton}
-                              onClick={handleSignOut}
-                            >
-                              Sign out
-                            </button>
+                            <div className={styles.authHeader}>
+                              <p className={styles.authEyebrow}>Settings</p>
+                              <p className={styles.authTitle}>{currentUser.email}</p>
+                            </div>
+                            <div className={styles.authSpaceCard}>
+                              <p className={styles.authSpaceLabel}>Current space</p>
+                              <p className={styles.authSpaceValue}>
+                                {authStatus === "syncing-space"
+                                  ? "Space: syncing..."
+                                  : currentSpaceName
+                                    ? `Space: ${currentSpaceName}`
+                                    : "Space: unknown"}
+                              </p>
+                            </div>
                           </>
                         ) : (
                           <form className={styles.authForm} onSubmit={handleEmailSignIn}>
@@ -1476,7 +1565,7 @@ export default function Home() {
                           </form>
                         )}
 
-                        {authMessage ? (
+                        {authMessage && (!currentUser || authStatus === "error") ? (
                           <p
                             className={`${styles.authMessage} ${
                               authStatus === "error" ? styles.authMessageError : ""
@@ -1493,14 +1582,12 @@ export default function Home() {
                           </p>
                         ) : null}
 
-                        {currentUser ? <div className={styles.settingsDivider} /> : null}
-
                         {currentUser ? (
-                          <div className={styles.stagePanel}>
-                            <p className={styles.authEyebrow}>Invite code</p>
+                          <div className={styles.authSection}>
+                            <p className={styles.authSectionTitle}>Join with invite code</p>
                             <form className={styles.authForm} onSubmit={handleJoinSpace}>
                               <label className={styles.authLabel} htmlFor="invite-code-input">
-                                Enter a space invite code to switch into that shared space.
+                                Enter an invite code to switch to another shared space.
                               </label>
                               <input
                                 id="invite-code-input"
@@ -1508,7 +1595,7 @@ export default function Home() {
                                 value={inviteCode}
                                 onChange={(event) => setInviteCode(event.target.value)}
                                 className={styles.authInput}
-                                placeholder="Paste space ID / invite code"
+                                placeholder="Enter invite code"
                                 autoComplete="off"
                                 autoCapitalize="off"
                                 spellCheck={false}
@@ -1521,10 +1608,13 @@ export default function Home() {
                                 {authStatus === "syncing-space" ? "Joining..." : "Join space"}
                               </button>
                             </form>
-                          <p className={styles.authMeta}>
-                            Status {petState.status} · Nutrition {petState.nutrition} · XP{" "}
-                            {formatPetXp(petState.xp)}
-                          </p>
+                            <button
+                              type="button"
+                              className={styles.authSecondaryButton}
+                              onClick={handleSignOut}
+                            >
+                              Sign out
+                            </button>
                           </div>
                         ) : null}
                       </section>
@@ -1805,7 +1895,7 @@ export default function Home() {
                         }}
                         className={styles.calendarFooterTextarea}
                         rows={7}
-                        placeholder="Write one event per line. Use [type] text to override the selected type."
+                        placeholder="One event per line..."
                       />
                     </form>
 
@@ -1982,7 +2072,7 @@ async function ensureSpaceMembershipByInviteCode(
   const { data: space, error: spaceError } = await supabase
     .from("spaces")
     .select("id, name")
-    .eq("id", normalizedInviteCode)
+    .eq("invite_code", normalizedInviteCode)
     .maybeSingle();
 
   if (spaceError) {
@@ -2427,10 +2517,6 @@ function getStageFromStatus(status: PetStatusValue): PetStageId {
     default:
       return "stage0";
   }
-}
-
-function shortId(value: string) {
-  return value.slice(0, 8);
 }
 
 function getPreferredSpaceStorageKey(_userId?: string) {

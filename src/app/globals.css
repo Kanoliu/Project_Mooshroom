@@ -1,9 +1,24 @@
+@font-face {
+  font-family: "SenLinMuGe CJK";
+  src: url("../../art-resources/Fonts/SenLinMuGe-2.ttf") format("truetype");
+  font-display: swap;
+  unicode-range:
+    U+2E80-2EFF,
+    U+3000-303F,
+    U+31C0-31EF,
+    U+3400-4DBF,
+    U+4E00-9FFF,
+    U+F900-FAFF,
+    U+FF00-FFEF;
+}
+
 :root {
   --background: #f4efe2;
   --foreground: #1f3527;
-  --font-sans: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-cjk: "SenLinMuGe CJK";
+  --font-sans: var(--font-cjk), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "Cascadia Code", "SFMono-Regular", Consolas, monospace;
-  --font-calendar: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --font-calendar: var(--font-cjk), "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --app-safe-top: env(safe-area-inset-top, 0px);
   --app-safe-right: env(safe-area-inset-right, 0px);
   --app-safe-bottom: env(safe-area-inset-bottom, 0px);

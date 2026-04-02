@@ -27,6 +27,7 @@ const CALENDAR_DAY_CELLS = [
 ] as const;
 
 const ROTATIONS = [0, 90, 180, 270] as const;
+const SELECTED_CELL_TAG_ART = "/art/ui/calendar-selected-mushroom.webp";
 
 type MonthCalendarProps = {
   year: number;
@@ -212,6 +213,11 @@ export function MonthCalendar({
                       draggable={false}
                       aria-hidden="true"
                     />
+                  </span>
+                ) : null}
+                {isSelected ? (
+                  <span className={styles.selectedTag} aria-hidden="true">
+                    <img src={SELECTED_CELL_TAG_ART} alt="" className={styles.selectedTagArt} draggable={false} />
                   </span>
                 ) : null}
               </button>
