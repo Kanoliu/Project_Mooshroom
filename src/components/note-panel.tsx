@@ -15,6 +15,7 @@ type CardLayout = {
   top: string;
   width: string;
   padding: string;
+  lineClamp: number;
 };
 
 type NotesStatus = "idle" | "loading" | "saving" | "ready" | "error";
@@ -179,5 +180,6 @@ function getCardStyle(layout: CardLayout): CSSProperties {
     "--card-top": layout.top,
     "--card-width": layout.width,
     "--card-padding": layout.padding,
+    "--card-line-clamp": String(layout.lineClamp),
   } as CSSProperties;
 }

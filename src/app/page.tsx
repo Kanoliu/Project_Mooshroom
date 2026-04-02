@@ -80,6 +80,7 @@ type CardLayout = {
   top: string;
   width: string;
   padding: string;
+  lineClamp: number;
 };
 
 type UiDockSlot = {
@@ -198,17 +199,19 @@ const cardLayouts: CardLayout[] = [
     art: "/art/ui/note%20card1.webp",
     rotate: "-6deg",
     left: "8%",
-    top: "4%",
+    top: "1%",
     width: "42%",
-    padding: "33% 15% 26% 13%",
+    padding: "27% 15% 26% 13%",
+    lineClamp: 3,
   },
   {
     art: "/art/ui/note%20card2.webp",
     rotate: "5deg",
     left: "59%",
-    top: "2%",
+    top: "0%",
     width: "39%",
-    padding: "30% 17% 25% 15%",
+    padding: "25% 17% 25% 15%",
+    lineClamp: 3,
   },
   {
     art: "/art/ui/note%20card3.webp",
@@ -216,7 +219,8 @@ const cardLayouts: CardLayout[] = [
     left: "13%",
     top: "45%",
     width: "42%",
-    padding: "34% 17% 19% 14%",
+    padding: "30% 17% 19% 14%",
+    lineClamp: 2,
   },
   {
     art: "/art/ui/note%20card4.webp",
@@ -224,7 +228,8 @@ const cardLayouts: CardLayout[] = [
     left: "50%",
     top: "39%",
     width: "41%",
-    padding: "36% 14% 20% 13%",
+    padding: "32% 14% 20% 13%",
+    lineClamp: 2,
   },
 ];
 

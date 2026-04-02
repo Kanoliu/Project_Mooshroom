@@ -83,6 +83,7 @@
   --card-top: 0%;
   --card-width: 36%;
   --card-padding: 31% 16% 27% 14%;
+  --card-line-clamp: 2;
   position: absolute;
   left: var(--card-left);
   top: var(--card-top);
@@ -135,7 +136,7 @@
 .boardCardText {
   display: -webkit-box;
   overflow: hidden;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: var(--card-line-clamp);
   -webkit-box-orient: vertical;
   font-family: var(--font-sans);
   font-size: 1.18rem;
