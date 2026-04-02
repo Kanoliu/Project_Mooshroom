@@ -2063,6 +2063,7 @@ export default function Home() {
                 setDraft("");
               }}
               onStartEditing={() => {
+                setDraft("");
                 setIsNoteEditing(true);
                 window.setTimeout(() => {
                   noteInputRef.current?.focus({ preventScroll: true });
