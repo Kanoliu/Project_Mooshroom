@@ -46,6 +46,7 @@ type PetState = {
 
 type PetAction = "visit" | "note" | "calendar" | "feed" | "water";
 type PetActionResult = { error: string | null; petState: PetState | null };
+type SpaceMembershipResult = { error: string | null; spaceId: string | null; spaceName: string | null };
 
 type NotesState = {
   hasHydrated: boolean;
@@ -106,14 +107,6 @@ type InventoryStatus = "idle" | "loading" | "ready" | "error";
 const EVENT_TYPES: EventType[] = ["娱乐", "办事", "吃饭", "随记"];
 
 const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
-
-const petStageOptions: Array<{ id: PetStageId; label: string }> = [
-  { id: "stage0", label: "0" },
-  { id: "stage1", label: "1" },
-  { id: "stage2", label: "2" },
-  { id: "stage3", label: "3" },
-  { id: "pet", label: "Pet" },
-];
 
 const petFrames = Array.from({ length: 60 }, (_, index) => {
   const frameNumber = String(index + 1).padStart(4, "0");
@@ -203,41 +196,39 @@ function getActivePetFrames(
 const cardLayouts: CardLayout[] = [
   {
     art: "/art/ui/note%20card1.webp",
-    rotate: "-4deg",
-    left: "13%",
-    top: "-13%",
-    width: "38%",
-    padding: "34% 16% 28% 13%",
+    rotate: "-6deg",
+    left: "8%",
+    top: "4%",
+    width: "42%",
+    padding: "33% 15% 26% 13%",
   },
   {
     art: "/art/ui/note%20card2.webp",
-    rotate: "3deg",
-    left: "54%",
-    top: "5%",
-    width: "33%",
-    padding: "29% 18% 26% 16%",
+    rotate: "5deg",
+    left: "59%",
+    top: "2%",
+    width: "39%",
+    padding: "30% 17% 25% 15%",
   },
   {
     art: "/art/ui/note%20card3.webp",
-    rotate: "-3deg",
-    left: "10%",
-    top: "28%",
-    width: "34%",
-    padding: "27% 18% 24% 15%",
+    rotate: "4deg",
+    left: "13%",
+    top: "45%",
+    width: "42%",
+    padding: "34% 17% 19% 14%",
   },
   {
     art: "/art/ui/note%20card4.webp",
-    rotate: "4deg",
-    left: "49%",
-    top: "32%",
-    width: "37%",
-    padding: "31% 14% 28% 13%",
+    rotate: "-5deg",
+    left: "50%",
+    top: "39%",
+    width: "41%",
+    padding: "36% 14% 20% 13%",
   },
 ];
 
 const topUiSlots: UiDockSlot[] = [
-  { id: "empty-left-1", label: "Empty slot", icon: null, action: "empty" },
-  { id: "empty-left-2", label: "Empty slot", icon: null, action: "empty" },
   { id: "note", label: "Notes", icon: "/art/ui/Note.webp", action: "note" },
   { id: "calender", label: "Calendar", icon: "/art/ui/Calender.webp", action: "calendar" },
   { id: "backpack", label: "Backpack", icon: "/art/ui/Backpack.webp", action: "backpack" },
@@ -288,6 +279,7 @@ export default function Home() {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(() => getTodayDateValue());
   const [selectedEventType, setSelectedEventType] = useState<EventType>("娱乐");
   const [email, setEmail] = useState("");
+  const [inviteCode, setInviteCode] = useState("");
   const [currentFrame, setCurrentFrame] = useState(0);
   const [currentWaterEffectFrame, setCurrentWaterEffectFrame] = useState(0);
   const [petAnimation, setPetAnimation] = useState<PetAnimation>("idle");
@@ -403,7 +395,7 @@ export default function Home() {
 
       setAuthStatus("syncing-space");
 
-      const result = await ensureDefaultSpaceMembership(user.id);
+      const result = await ensureInitialSpaceMembership(user.id);
       if (!isMounted) {
         return;
       }
@@ -891,11 +883,7 @@ export default function Home() {
 
   useEffect(() => {
     if (isNoteOpen) {
-      const focusTimeout = window.setTimeout(() => {
-        noteInputRef.current?.focus({ preventScroll: true });
-      }, 120);
-
-      return () => window.clearTimeout(focusTimeout);
+      return undefined;
     }
 
     if (document.activeElement === noteInputRef.current) {
@@ -1098,6 +1086,7 @@ export default function Home() {
       return;
     }
 
+    clearPreferredSpaceId();
     setActiveSpaceId(null);
     setCurrentUser(null);
     dispatch({ type: "reset" });
@@ -1110,6 +1099,42 @@ export default function Home() {
     setAuthStatus("idle");
     setAuthMessage(null);
     setIsAuthMenuOpen(false);
+  };
+
+  const handleJoinSpace = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!currentUser) {
+      setAuthStatus("error");
+      setAuthMessage("Sign in before entering an invite code.");
+      return;
+    }
+
+    const trimmedInviteCode = inviteCode.trim();
+    if (!trimmedInviteCode) {
+      setAuthStatus("error");
+      setAuthMessage("Enter an invite code first.");
+      return;
+    }
+
+    setAuthStatus("syncing-space");
+    setAuthMessage(null);
+
+    const result = await ensureSpaceMembershipByInviteCode(currentUser.id, trimmedInviteCode);
+    if (result.error) {
+      setAuthStatus("error");
+      setAuthMessage(result.error);
+      return;
+    }
+
+    if (result.spaceId) {
+      writePreferredSpaceId(currentUser.id, result.spaceId);
+      setActiveSpaceId(result.spaceId);
+    }
+
+    setInviteCode("");
+    setAuthStatus("ready");
+    setAuthMessage(`Joined ${result.spaceName}.`);
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1288,7 +1313,7 @@ export default function Home() {
     setIsFoodDragging(false);
     setFoodOffset({ x: 0, y: 0 });
 
-    if (isDroppedOnPet) {
+    if (isDroppedOnPet && selectedPetStage === "pet") {
       triggerPetEat();
       void feedPet();
     }
@@ -1468,34 +1493,40 @@ export default function Home() {
                           </p>
                         ) : null}
 
-                        <div className={styles.settingsDivider} />
+                        {currentUser ? <div className={styles.settingsDivider} /> : null}
 
-                        <div className={styles.stagePanel}>
-                          <p className={styles.authEyebrow}>Pet stage</p>
-                          <section className={styles.stageToggle} aria-label="Pet stage selector">
-                            {petStageOptions.map((option) => (
+                        {currentUser ? (
+                          <div className={styles.stagePanel}>
+                            <p className={styles.authEyebrow}>Invite code</p>
+                            <form className={styles.authForm} onSubmit={handleJoinSpace}>
+                              <label className={styles.authLabel} htmlFor="invite-code-input">
+                                Enter a space invite code to switch into that shared space.
+                              </label>
+                              <input
+                                id="invite-code-input"
+                                type="text"
+                                value={inviteCode}
+                                onChange={(event) => setInviteCode(event.target.value)}
+                                className={styles.authInput}
+                                placeholder="Paste space ID / invite code"
+                                autoComplete="off"
+                                autoCapitalize="off"
+                                spellCheck={false}
+                              />
                               <button
-                                key={option.id}
-                                type="button"
-                                className={`${styles.stageButton} ${
-                                  selectedPetStage === option.id ? styles.stageButtonActive : ""
-                                }`}
-                                onClick={() => {
-                                  setSelectedPetStage(option.id);
-                                  setPetAnimation("idle");
-                                  setCurrentFrame(0);
-                                }}
-                                aria-pressed={selectedPetStage === option.id}
+                                type="submit"
+                                className={styles.authButton}
+                                disabled={authStatus === "syncing-space"}
                               >
-                                {option.label}
+                                {authStatus === "syncing-space" ? "Joining..." : "Join space"}
                               </button>
-                            ))}
-                          </section>
+                            </form>
                           <p className={styles.authMeta}>
                             Status {petState.status} · Nutrition {petState.nutrition} · XP{" "}
                             {formatPetXp(petState.xp)}
                           </p>
-                        </div>
+                          </div>
+                        ) : null}
                       </section>
                     ) : null}
                   </div>
@@ -1627,40 +1658,42 @@ export default function Home() {
                 />
               </button>
             </div>
-            <div className={styles.resourceFrame}>
-              <Image
-                src="/art/ui/UI%20frame.webp"
-                alt=""
-                fill
-                unoptimized
-                className={styles.uiFrameArt}
-              />
-              <button
-                ref={foodButtonRef}
-                type="button"
-                className={styles.resourceButton}
-                data-dragging={isFoodDragging ? "true" : "false"}
-                onPointerDown={handleFoodPointerDown}
-                onPointerMove={handleFoodPointerMove}
-                onPointerUp={finishFoodDrag}
-                onPointerCancel={finishFoodDrag}
-                style={
-                  {
-                    "--drag-x": `${foodOffset.x}px`,
-                    "--drag-y": `${foodOffset.y}px`,
-                  } as CSSProperties
-                }
-                aria-label="Drag food"
-              >
+            {selectedPetStage === "pet" ? (
+              <div className={styles.resourceFrame}>
                 <Image
-                  src="/art/ui/Food.webp"
+                  src="/art/ui/UI%20frame.webp"
                   alt=""
                   fill
                   unoptimized
-                  className={styles.resourceIcon}
+                  className={styles.uiFrameArt}
                 />
-              </button>
-            </div>
+                <button
+                  ref={foodButtonRef}
+                  type="button"
+                  className={styles.resourceButton}
+                  data-dragging={isFoodDragging ? "true" : "false"}
+                  onPointerDown={handleFoodPointerDown}
+                  onPointerMove={handleFoodPointerMove}
+                  onPointerUp={finishFoodDrag}
+                  onPointerCancel={finishFoodDrag}
+                  style={
+                    {
+                      "--drag-x": `${foodOffset.x}px`,
+                      "--drag-y": `${foodOffset.y}px`,
+                    } as CSSProperties
+                  }
+                  aria-label="Drag food"
+                >
+                  <Image
+                    src="/art/ui/Food.webp"
+                    alt=""
+                    fill
+                    unoptimized
+                    className={styles.resourceIcon}
+                  />
+                </button>
+              </div>
+            ) : null}
           </aside>
 
           <div
@@ -1873,7 +1906,16 @@ export default function Home() {
             isSaveDisabled={isSaveDisabled}
             noteInputRef={noteInputRef}
             onClose={() => setIsNoteOpen(false)}
-            onSelectNote={setSelectedNoteId}
+            onSelectNote={(noteId) => {
+              setSelectedNoteId(noteId);
+              setIsNoteEditing(false);
+            }}
+            onStartEditing={() => {
+              setIsNoteEditing(true);
+              window.setTimeout(() => {
+                noteInputRef.current?.focus({ preventScroll: true });
+              }, 0);
+            }}
             onSubmit={handleSubmit}
             onDraftChange={setDraft}
             onInputFocus={() => setIsNoteEditing(true)}
@@ -1889,7 +1931,19 @@ export default function Home() {
   );
 }
 
-async function ensureDefaultSpaceMembership(userId: string) {
+async function ensureInitialSpaceMembership(userId: string): Promise<SpaceMembershipResult> {
+  const preferredSpaceId = readPreferredSpaceId(userId);
+  if (preferredSpaceId) {
+    const preferredResult = await ensureSpaceMembershipById(userId, preferredSpaceId);
+    if (!preferredResult.error && preferredResult.spaceId) {
+      return preferredResult;
+    }
+  }
+
+  return ensureDefaultSpaceMembership(userId);
+}
+
+async function ensureDefaultSpaceMembership(userId: string): Promise<SpaceMembershipResult> {
   if (!supabase) {
     return { error: "Supabase is not configured.", spaceId: null, spaceName: null };
   }
@@ -1909,10 +1963,60 @@ async function ensureDefaultSpaceMembership(userId: string) {
     return { error: "No default space exists in Supabase yet.", spaceId: null, spaceName: null };
   }
 
+  return ensureSpaceMembershipById(userId, defaultSpace.id, defaultSpace.name);
+}
+
+async function ensureSpaceMembershipByInviteCode(
+  userId: string,
+  inviteCode: string,
+): Promise<SpaceMembershipResult> {
+  if (!supabase) {
+    return { error: "Supabase is not configured.", spaceId: null, spaceName: null };
+  }
+
+  const normalizedInviteCode = inviteCode.trim();
+  if (!normalizedInviteCode) {
+    return { error: "Enter an invite code first.", spaceId: null, spaceName: null };
+  }
+
+  const { data: space, error: spaceError } = await supabase
+    .from("spaces")
+    .select("id, name")
+    .eq("id", normalizedInviteCode)
+    .maybeSingle();
+
+  if (spaceError) {
+    return { error: spaceError.message, spaceId: null, spaceName: null };
+  }
+
+  if (!space) {
+    return { error: "Could not find a space with that invite code.", spaceId: null, spaceName: null };
+  }
+
+  return ensureSpaceMembershipById(userId, space.id, space.name);
+}
+
+async function ensureSpaceMembershipById(
+  userId: string,
+  spaceId: string,
+  knownSpaceName?: string | null,
+): Promise<SpaceMembershipResult> {
+  if (!supabase) {
+    return { error: "Supabase is not configured.", spaceId: null, spaceName: null };
+  }
+
+  const spaceName =
+    knownSpaceName ??
+    (await fetchSpaceName(spaceId));
+
+  if (!spaceName) {
+    return { error: "Could not find that shared space.", spaceId: null, spaceName: null };
+  }
+
   const { data: existingMembership, error: membershipLookupError } = await supabase
     .from("space_members")
     .select("id")
-    .eq("space_id", defaultSpace.id)
+    .eq("space_id", spaceId)
     .eq("user_id", userId)
     .maybeSingle();
 
@@ -1922,7 +2026,7 @@ async function ensureDefaultSpaceMembership(userId: string) {
 
   if (!existingMembership) {
     const { error: insertError } = await supabase.from("space_members").insert({
-      space_id: defaultSpace.id,
+      space_id: spaceId,
       user_id: userId,
       role: "member",
     });
@@ -1932,7 +2036,25 @@ async function ensureDefaultSpaceMembership(userId: string) {
     }
   }
 
-  return { error: null, spaceId: defaultSpace.id, spaceName: defaultSpace.name };
+  return { error: null, spaceId, spaceName };
+}
+
+async function fetchSpaceName(spaceId: string) {
+  if (!supabase) {
+    return null;
+  }
+
+  const { data: space, error } = await supabase
+    .from("spaces")
+    .select("name")
+    .eq("id", spaceId)
+    .maybeSingle();
+
+  if (error) {
+    return null;
+  }
+
+  return space?.name ?? null;
 }
 
 async function fetchNotesForSpace(spaceId: string) {
@@ -2309,6 +2431,34 @@ function getStageFromStatus(status: PetStatusValue): PetStageId {
 
 function shortId(value: string) {
   return value.slice(0, 8);
+}
+
+function getPreferredSpaceStorageKey(_userId?: string) {
+  return "preferred-space-id";
+}
+
+function readPreferredSpaceId(userId?: string) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  return window.localStorage.getItem(getPreferredSpaceStorageKey(userId));
+}
+
+function writePreferredSpaceId(userId: string, spaceId: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(getPreferredSpaceStorageKey(userId), spaceId);
+}
+
+function clearPreferredSpaceId(userId?: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(getPreferredSpaceStorageKey(userId));
 }
 
 function formatShortDate(date: string) {

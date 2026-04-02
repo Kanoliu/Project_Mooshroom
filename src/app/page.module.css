@@ -55,10 +55,10 @@
   right: 18px;
   z-index: 8;
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
   align-items: start;
-  transform: scale(0.8);
+  transform: scale(0.96);
   transform-origin: top center;
 }
 
@@ -128,47 +128,6 @@
   width: 67px;
   aspect-ratio: 219 / 215;
   filter: drop-shadow(0 14px 22px rgba(65, 45, 32, 0.18));
-}
-
-.stageToggle {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.stageButton {
-  min-width: 42px;
-  min-height: 38px;
-  padding: 0 14px;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(247, 242, 232, 0.94);
-  box-shadow:
-    0 10px 18px rgba(58, 38, 25, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.65);
-  color: rgba(83, 49, 29, 0.8);
-  font: inherit;
-  font-size: 0.84rem;
-  font-weight: 700;
-  cursor: pointer;
-  transition:
-    transform 140ms ease,
-    background-color 140ms ease,
-    color 140ms ease;
-}
-
-.stageButton:hover {
-  transform: translateY(-1px);
-}
-
-.stageButtonActive {
-  background: rgba(141, 96, 66, 0.96);
-  color: #fff7ef;
-}
-
-.stageButton:focus-visible {
-  outline: 2px solid rgba(132, 86, 54, 0.8);
-  outline-offset: 2px;
 }
 
 .authMenuWrap {
@@ -678,6 +637,9 @@
   font-size: 0.74rem;
   line-height: 1.28;
   overflow: hidden;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .calendarFooterSaveButton {
@@ -1008,13 +970,6 @@
     width: min(244px, calc(100% - 144px));
     height: 250px;
     bottom: 6%;
-  }
-
-  .stageButton {
-    min-width: 38px;
-    min-height: 34px;
-    padding: 0 12px;
-    font-size: 0.78rem;
   }
 
   .calendarPanel {

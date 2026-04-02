@@ -32,6 +32,7 @@ type NotePanelProps = {
   noteInputRef: RefObject<HTMLTextAreaElement | null>;
   onClose: () => void;
   onSelectNote: (noteId: string) => void;
+  onStartEditing: () => void;
   onSubmit: FormEventHandler<HTMLFormElement>;
   onDraftChange: (value: string) => void;
   onInputFocus: () => void;
@@ -52,6 +53,7 @@ export function NotePanel({
   noteInputRef,
   onClose,
   onSelectNote,
+  onStartEditing,
   onSubmit,
   onDraftChange,
   onInputFocus,
@@ -126,9 +128,6 @@ export function NotePanel({
                 />
                 <div className={styles.boardCardContent}>
                   <p className={styles.boardCardText}>{note.text}</p>
-                  <time className={styles.boardCardDate} dateTime={note.createdAt}>
-                    {formatShortDate(note.createdAt)}
-                  </time>
                 </div>
               </button>
             ))
@@ -136,22 +135,37 @@ export function NotePanel({
         </div>
 
         <form className={styles.noteComposer} onSubmit={onSubmit}>
-          <div className={styles.composerSurface}>
-            <textarea
-              ref={noteInputRef}
-              id="note-input"
-              className={styles.noteInput}
-              rows={5}
-              value={draft}
-              onChange={(event) => onDraftChange(event.target.value)}
-              onFocus={onInputFocus}
-              onBlur={onInputBlur}
-              placeholder="Write a little note..."
-            />
-            <button type="submit" className={styles.saveButton} disabled={isSaveDisabled}>
-              {notesStatus === "saving" ? "Saving..." : "Save"}
-            </button>
-          </div>
+          {isEditing ? (
+            <div className={styles.composerSurface}>
+              <textarea
+                ref={noteInputRef}
+                id="note-input"
+                className={styles.noteInput}
+                rows={3}
+                value={draft}
+                onChange={(event) => onDraftChange(event.target.value)}
+                onFocus={onInputFocus}
+                onBlur={onInputBlur}
+                placeholder="Write a little note..."
+              />
+              <button type="submit" className={styles.saveButton} disabled={isSaveDisabled}>
+                {notesStatus === "saving" ? "Saving..." : "Save"}
+              </button>
+            </div>
+          ) : (
+            <div className={styles.noteViewer}>
+              {selectedPreviewNote ? (
+                <>
+                  <p className={styles.noteViewerText}>{selectedPreviewNote.text}</p>
+                </>
+              ) : (
+                <p className={styles.noteViewerEmpty}>Click a note to view it here.</p>
+              )}
+              <button type="button" className={styles.saveButton} onClick={onStartEditing}>
+                Write note
+              </button>
+            </div>
+          )}
         </form>
       </div>
     </section>
