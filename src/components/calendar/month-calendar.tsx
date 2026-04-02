@@ -191,18 +191,25 @@ export function MonthCalendar({
                   }
                 }}
               >
-                <Image
-                  src={cell.tileVariant}
-                  alt=""
-                  fill
-                  className={`${styles.dayCellArt} ${isOutsideCurrentMonth ? styles.dayCellArtEmpty : ""}`.trim()}
-                  style={{ transform: `rotate(${cell.tileRotation}deg)` }}
-                  sizes="(max-width: 768px) 10vw, 96px"
-                />
-                <span
-                  className={`${styles.dayNumber} ${cell.isToday ? styles.todayNumber : ""} ${isOutsideCurrentMonth ? styles.dayNumberMuted : ""}`.trim()}
-                >
-                  {cell.date}
+                <span className={styles.dayCellInner}>
+                  <Image
+                    src={cell.tileVariant}
+                    alt=""
+                    fill
+                    className={`${styles.dayCellArt} ${isOutsideCurrentMonth ? styles.dayCellArtEmpty : ""}`.trim()}
+                    style={{ transform: `rotate(${cell.tileRotation}deg)` }}
+                    sizes="(max-width: 768px) 10vw, 96px"
+                  />
+                  <span
+                    className={`${styles.dayNumber} ${cell.isToday ? styles.todayNumber : ""} ${isOutsideCurrentMonth ? styles.dayNumberMuted : ""}`.trim()}
+                  >
+                    {cell.date}
+                  </span>
+                  {isSelected ? (
+                    <span className={styles.selectedTag} aria-hidden="true">
+                      <img src={SELECTED_CELL_TAG_ART} alt="" className={styles.selectedTagArt} draggable={false} />
+                    </span>
+                  ) : null}
                 </span>
                 {eventStamp ? (
                   <span className={styles.eventStamp}>
@@ -213,11 +220,6 @@ export function MonthCalendar({
                       draggable={false}
                       aria-hidden="true"
                     />
-                  </span>
-                ) : null}
-                {isSelected ? (
-                  <span className={styles.selectedTag} aria-hidden="true">
-                    <img src={SELECTED_CELL_TAG_ART} alt="" className={styles.selectedTagArt} draggable={false} />
                   </span>
                 ) : null}
               </button>
