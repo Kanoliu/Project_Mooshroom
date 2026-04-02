@@ -215,12 +215,12 @@
 
 .eventStamp {
   position: absolute;
-  top: 60%;
-  left: 58%;
+  top: 56%;
+  left: 54%;
   z-index: 5;
   width: clamp(2.6rem, 6vw, 3.45rem);
   aspect-ratio: 1;
-  transform: translate(-50%, -30%);
+  transform: translate(-50%, -38%);
   pointer-events: none;
 }
 

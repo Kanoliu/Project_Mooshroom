@@ -291,6 +291,8 @@ function notesReducer(state: NotesState, action: NotesAction): NotesState {
 export default function Home() {
   const [isInitialSceneReady, setIsInitialSceneReady] = useState(false);
   const [preloadedAssetCount, setPreloadedAssetCount] = useState(0);
+  const [displayedPreloadPercent, setDisplayedPreloadPercent] = useState(0);
+  const [hasResolvedAuthSession, setHasResolvedAuthSession] = useState(!supabase);
   const [isNoteOpen, setIsNoteOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isBackpackOpen, setIsBackpackOpen] = useState(false);
@@ -317,6 +319,7 @@ export default function Home() {
   const [currentWaterEffectFrame, setCurrentWaterEffectFrame] = useState(0);
   const [petAnimation, setPetAnimation] = useState<PetAnimation>("idle");
   const [isWaterEffectPlaying, setIsWaterEffectPlaying] = useState(false);
+  const loadedSceneAssetsRef = useRef<Set<string>>(new Set());
   const [petState, setPetState] = useState<PetState>({
     status: "0",
     nutrition: 0,
@@ -454,6 +457,7 @@ export default function Home() {
         setInventoryStatus("idle");
         setAuthStatus("idle");
         setAuthMessage(null);
+        setHasResolvedAuthSession(true);
         return;
       }
 
@@ -469,6 +473,7 @@ export default function Home() {
         setCurrentSpaceName(null);
         setAuthStatus("error");
         setAuthMessage(result.error);
+        setHasResolvedAuthSession(true);
         return;
       }
 
@@ -476,6 +481,7 @@ export default function Home() {
       setCurrentSpaceName(result.spaceName);
       setAuthStatus("ready");
       setAuthMessage(`Space: ${result.spaceName}.`);
+      setHasResolvedAuthSession(true);
     };
 
     void supabase.auth.getUser().then(({ data, error }) => {
@@ -486,6 +492,7 @@ export default function Home() {
 
         setAuthStatus("error");
         setAuthMessage(error.message);
+        setHasResolvedAuthSession(true);
         return;
       }
 
@@ -807,33 +814,64 @@ export default function Home() {
   }, [activeSpaceId, hasResolvedPetStage, selectedPetStage]);
 
   useEffect(() => {
+    setIsInitialSceneReady(false);
+    setPreloadedAssetCount(0);
+    setDisplayedPreloadPercent(0);
+  }, [activeSpaceId]);
+
+  useEffect(() => {
     if (activeSpaceId && !hasResolvedPetStage) {
-      setIsInitialSceneReady(false);
-      setPreloadedAssetCount(0);
       return;
     }
 
     let isCancelled = false;
-    let loadedCount = 0;
+    let loadedCount = sceneAssetUrls.reduce(
+      (count, src) => count + (loadedSceneAssetsRef.current.has(src) ? 1 : 0),
+      0,
+    );
 
-    const markAssetComplete = () => {
+    const updatePreloadProgress = (count: number) => {
+      if (!isInitialSceneReady) {
+        setPreloadedAssetCount(count);
+      }
+
+      setDisplayedPreloadPercent((current) => {
+        const nextPercent =
+          sceneAssetUrls.length === 0 ? 100 : Math.round((count / sceneAssetUrls.length) * 100);
+
+        return Math.max(current, nextPercent);
+      });
+    };
+
+    const markAssetComplete = (src: string) => {
+      loadedSceneAssetsRef.current.add(src);
       loadedCount += 1;
 
       if (isCancelled) {
         return;
       }
 
-      setPreloadedAssetCount(loadedCount);
+      updatePreloadProgress(loadedCount);
 
-      if (loadedCount >= sceneAssetUrls.length) {
+      if (!isInitialSceneReady && loadedCount >= sceneAssetUrls.length) {
         setIsInitialSceneReady(true);
       }
     };
 
-    setIsInitialSceneReady(false);
-    setPreloadedAssetCount(0);
+    updatePreloadProgress(loadedCount);
+
+    if (loadedCount >= sceneAssetUrls.length) {
+      if (!isInitialSceneReady) {
+        setIsInitialSceneReady(true);
+      }
+      return;
+    }
 
     sceneAssetUrls.forEach((src) => {
+      if (loadedSceneAssetsRef.current.has(src)) {
+        return;
+      }
+
       const image = new window.Image();
       let hasSettled = false;
 
@@ -845,7 +883,7 @@ export default function Home() {
         hasSettled = true;
         image.onload = null;
         image.onerror = null;
-        markAssetComplete();
+        markAssetComplete(src);
       };
 
       image.decoding = "async";
@@ -861,7 +899,7 @@ export default function Home() {
     return () => {
       isCancelled = true;
     };
-  }, [activeSpaceId, hasResolvedPetStage, sceneAssetUrls]);
+  }, [activeSpaceId, hasResolvedPetStage, isInitialSceneReady, sceneAssetUrls]);
 
   useLayoutEffect(() => {
     const isPreviewStage = selectedPetStage !== "pet";
@@ -1508,10 +1546,12 @@ export default function Home() {
   const activeWaterEffectFrame = isWaterEffectPlaying
     ? waterEffectFrames[currentWaterEffectFrame] ?? null
     : null;
-  const preloadPercent =
-    sceneAssetUrls.length === 0
-      ? 100
-      : Math.round((preloadedAssetCount / sceneAssetUrls.length) * 100);
+  const preloadPercent = displayedPreloadPercent;
+  const shouldShowLoadingScreen =
+    !hasResolvedAuthSession ||
+    authStatus === "syncing-space" ||
+    (activeSpaceId !== null && !hasResolvedPetStage) ||
+    !isInitialSceneReady;
 
   const feedPet = async () => {
     if (!activeSpaceId) {
@@ -1545,7 +1585,7 @@ export default function Home() {
     <main className={styles.page}>
       <section className={styles.phoneShell}>
         <div className={styles.scene}>
-            {!isInitialSceneReady ? (
+            {shouldShowLoadingScreen ? (
               <div className={styles.loadingScreen} role="status" aria-live="polite">
                 <div className={styles.loadingPanel}>
                   <div className={styles.loadingIconWrap}>
