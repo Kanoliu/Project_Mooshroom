@@ -1089,6 +1089,34 @@ export default function Home() {
     return () => window.clearTimeout(focusTimeout);
   }, [isCalendarOpen, selectedCalendarDate]);
 
+  useEffect(() => {
+    if (!activeSpaceId) {
+      setDraft("");
+      setIsNoteEditing(false);
+      return;
+    }
+
+    const savedDraftSession = readNoteDraftSession(activeSpaceId);
+    setDraft(savedDraftSession?.draft ?? "");
+    setIsNoteEditing(savedDraftSession?.isEditing ?? false);
+  }, [activeSpaceId]);
+
+  useEffect(() => {
+    if (!activeSpaceId) {
+      return;
+    }
+
+    if (!draft && !isNoteEditing) {
+      clearNoteDraftSession(activeSpaceId);
+      return;
+    }
+
+    writeNoteDraftSession(activeSpaceId, {
+      draft,
+      isEditing: isNoteEditing,
+    });
+  }, [activeSpaceId, draft, isNoteEditing]);
+
   const sceneAssetUrls = useMemo(() => {
     const stageFramesToPreload =
       activeSpaceId && !hasResolvedPetStage ? [] : getActivePetFrames(selectedPetStage, "idle");
@@ -2583,6 +2611,47 @@ function getStageFromStatus(status: PetStatusValue): PetStageId {
 
 function getPreferredSpaceStorageKey(_userId?: string) {
   return "preferred-space-id";
+}
+
+function getNoteDraftStorageKey(spaceId: string) {
+  return `note-draft:${spaceId}`;
+}
+
+function readNoteDraftSession(spaceId: string) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const rawValue = window.sessionStorage.getItem(getNoteDraftStorageKey(spaceId));
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    const parsedValue = JSON.parse(rawValue) as { draft?: string; isEditing?: boolean };
+    return {
+      draft: typeof parsedValue.draft === "string" ? parsedValue.draft : "",
+      isEditing: parsedValue.isEditing === true,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writeNoteDraftSession(spaceId: string, value: { draft: string; isEditing: boolean }) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.setItem(getNoteDraftStorageKey(spaceId), JSON.stringify(value));
+}
+
+function clearNoteDraftSession(spaceId: string) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.sessionStorage.removeItem(getNoteDraftStorageKey(spaceId));
 }
 
 function readPreferredSpaceId(userId?: string) {
