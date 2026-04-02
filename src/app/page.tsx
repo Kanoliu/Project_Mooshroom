@@ -357,8 +357,6 @@ export default function Home() {
 
   const closeNotesPanel = () => {
     setIsNoteOpen(false);
-    setIsNoteEditing(false);
-    setDraft("");
   };
 
   const openCalendarPanel = () => {
@@ -998,8 +996,6 @@ export default function Home() {
     if (document.activeElement === noteInputRef.current) {
       noteInputRef.current?.blur();
     }
-    setIsNoteEditing(false);
-    setDraft("");
     resetWindowViewport();
 
     return undefined;
@@ -1263,6 +1259,10 @@ export default function Home() {
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
+    if (!isNoteEditing) {
+      return;
+    }
+
     const trimmed = draft.trim();
     if (!trimmed || !supabase || !currentUser || !activeSpaceId) {
       return;
@@ -1297,11 +1297,12 @@ export default function Home() {
       setSelectedPetStage(getStageFromStatus(rewardResult.petState.status));
     }
 
-    setNotesStatus("ready");
-    pendingNoteReactionRef.current = true;
-    setDraft("");
-    openNotesPanel();
-  };
+      setNotesStatus("ready");
+      pendingNoteReactionRef.current = true;
+      setDraft("");
+      setIsNoteEditing(false);
+      openNotesPanel();
+    };
 
   const handleCalendarEventSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -2063,7 +2064,6 @@ export default function Home() {
                 setDraft("");
               }}
               onStartEditing={() => {
-                setDraft("");
                 setIsNoteEditing(true);
                 window.setTimeout(() => {
                   noteInputRef.current?.focus({ preventScroll: true });

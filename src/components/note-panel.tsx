@@ -96,7 +96,7 @@ export function NotePanel({
           </button>
         </header>
 
-        <div className={`${styles.noteBoard} ${isEditing ? styles.noteBoardEditing : ""}`.trim()}>
+        <div className={styles.noteBoard}>
           {notesStatus === "loading" && !hasHydrated ? (
             <div className={styles.emptyBoard}>
               <p>Loading shared notes...</p>

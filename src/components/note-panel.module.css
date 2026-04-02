@@ -77,10 +77,6 @@
   overflow: hidden;
 }
 
-.noteBoardEditing {
-  pointer-events: none;
-}
-
 .boardCard {
   --card-rotate: 0deg;
   --card-left: 0%;
