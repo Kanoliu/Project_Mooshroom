@@ -46,6 +46,7 @@
   text-align: center;
   color: #110b08;
   font-family: var(--font-calendar), var(--font-sans);
+  font-synthesis: weight;
 }
 
 .titleCopy {
@@ -92,22 +93,28 @@
 
 .titleMonth {
   max-width: 100%;
-  font-size: clamp(1rem, 2vw, 1.3rem);
-  font-weight: 700;
+  font-size: clamp(1.05rem, 2vw, 1.4rem);
+  font-weight: 800;
   line-height: 0.9;
   letter-spacing: 0.01em;
   text-transform: uppercase;
   white-space: nowrap;
   text-overflow: ellipsis;
   overflow: hidden;
+  text-shadow:
+    0.02em 0 rgba(17, 11, 8, 0.45),
+    -0.02em 0 rgba(17, 11, 8, 0.45);
 }
 
 .titleYear {
-  font-size: clamp(0.76rem, 1.25vw, 0.96rem);
-  font-weight: 700;
+  font-size: clamp(0.8rem, 1.2vw, 0.98rem);
+  font-weight: 800;
   line-height: 1;
   letter-spacing: 0.01em;
   color: rgba(47, 32, 22, 0.9);
+  text-shadow:
+    0.015em 0 rgba(47, 32, 22, 0.38),
+    -0.015em 0 rgba(47, 32, 22, 0.38);
 }
 
 .body {
@@ -168,14 +175,18 @@
   z-index: 2;
   color: #38241a;
   font-family: var(--font-calendar), var(--font-sans);
-  font-size: clamp(1.22rem, 2.5vw, 1.86rem);
-  font-weight: 700;
+  font-size: clamp(1.62rem, 3.2vw, 2.3rem);
+  font-weight: 800;
   line-height: 1;
-  text-shadow: 0 1px 0 rgba(255, 246, 224, 0.28);
+  font-synthesis: weight;
+  text-shadow:
+    0 1px 0 rgba(255, 246, 224, 0.28),
+    0.018em 0 rgba(56, 36, 26, 0.42),
+    -0.018em 0 rgba(56, 36, 26, 0.42);
 }
 
 .todayNumber {
-  color: #000;
+  color: #b33b2f;
 }
 
 .dayNumberMuted {
@@ -190,6 +201,10 @@
 .dayCellSelected .dayCellArt {
   opacity: 0.98;
   filter: saturate(1.08) brightness(1.04);
+}
+
+.dayCellSelected .dayNumber {
+  color: #38241a;
 }
 
 .eventStamp {
@@ -216,7 +231,7 @@
 .selectedTag {
   position: absolute;
   bottom: clamp(-1.05rem, -2.3vw, -0.65rem);
-  left: clamp(-1.2rem, -2.7vw, -0.7rem);
+  left: clamp(-0.42rem, -0.65vw, 0rem);
   z-index: 3;
   width: clamp(2rem, 4.6vw, 2.7rem);
   aspect-ratio: 1;
@@ -262,16 +277,16 @@
 }
 
 .dayCellSelected .dayNumber {
-  color: #b33a2f;
+  color: #38241a;
   font-weight: 800;
   text-shadow:
     0 1px 0 rgba(255, 245, 238, 0.78),
-    0 0 0.32rem rgba(179, 58, 47, 0.18);
+    0 0 0.18rem rgba(56, 36, 26, 0.08);
 }
 
 @media (max-width: 640px) {
   .titleMonth {
-    font-size: clamp(0.88rem, 1.7vw, 1.18rem);
+    font-size: clamp(0.92rem, 2vw, 1.12rem);
   }
 
   .titleButton,
@@ -285,13 +300,13 @@
   }
 
   .titleYear {
-    font-size: clamp(0.66rem, 1vw, 0.82rem);
+    font-size: clamp(0.72rem, 1.05vw, 0.86rem);
   }
 
   .dayNumber {
     top: 0.22rem;
     left: 0.3rem;
-    font-size: clamp(1.14rem, 3.5vw, 1.34rem);
+    font-size: clamp(1.42rem, 4.4vw, 1.72rem);
   }
 
   .eventStamp {

@@ -340,6 +340,30 @@ export default function Home() {
   const authMenuRef = useRef<HTMLDivElement>(null);
   const foodButtonRef = useRef<HTMLButtonElement>(null);
   const kettleButtonRef = useRef<HTMLButtonElement>(null);
+
+  const openNotesPanel = () => {
+    setIsNoteOpen(true);
+    setIsCalendarOpen(false);
+    setIsBackpackOpen(false);
+    setIsAuthMenuOpen(false);
+  };
+
+  const openCalendarPanel = () => {
+    const today = new Date();
+    setCalendarViewDate(new Date(today.getFullYear(), today.getMonth(), 1));
+    setSelectedCalendarDate(getTodayDateValue());
+    setIsCalendarOpen(true);
+    setIsNoteOpen(false);
+    setIsBackpackOpen(false);
+    setIsAuthMenuOpen(false);
+  };
+
+  const openBackpackPanel = () => {
+    setIsBackpackOpen(true);
+    setIsCalendarOpen(false);
+    setIsNoteOpen(false);
+    setIsAuthMenuOpen(false);
+  };
   const petButtonRef = useRef<HTMLButtonElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const waterEffectFrameRef = useRef<number | null>(null);
@@ -1241,7 +1265,7 @@ export default function Home() {
     setNotesStatus("ready");
     pendingNoteReactionRef.current = true;
     setDraft("");
-    setIsNoteOpen(true);
+    openNotesPanel();
   };
 
   const handleCalendarEventSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1626,10 +1650,11 @@ export default function Home() {
                     type="button"
                     className={styles.frameAction}
                     onClick={() => {
-                      setIsNoteOpen((open) => !open);
-                      setIsCalendarOpen(false);
-                      setIsBackpackOpen(false);
-                      setIsAuthMenuOpen(false);
+                      if (isNoteOpen) {
+                        setIsNoteOpen(false);
+                        return;
+                      }
+                      openNotesPanel();
                     }}
                     aria-expanded={isNoteOpen}
                     aria-controls="notes-panel"
@@ -1649,10 +1674,11 @@ export default function Home() {
                     type="button"
                     className={styles.frameAction}
                     onClick={() => {
-                      setIsCalendarOpen((open) => !open);
-                      setIsNoteOpen(false);
-                      setIsBackpackOpen(false);
-                      setIsAuthMenuOpen(false);
+                      if (isCalendarOpen) {
+                        setIsCalendarOpen(false);
+                        return;
+                      }
+                      openCalendarPanel();
                     }}
                     aria-expanded={isCalendarOpen}
                     aria-controls="calendar-panel"
@@ -1672,10 +1698,11 @@ export default function Home() {
                     type="button"
                     className={styles.frameAction}
                     onClick={() => {
-                      setIsBackpackOpen((open) => !open);
-                      setIsCalendarOpen(false);
-                      setIsNoteOpen(false);
-                      setIsAuthMenuOpen(false);
+                      if (isBackpackOpen) {
+                        setIsBackpackOpen(false);
+                        return;
+                      }
+                      openBackpackPanel();
                     }}
                     aria-expanded={isBackpackOpen}
                     aria-controls="backpack-panel"
@@ -1914,10 +1941,6 @@ export default function Home() {
           >
             <div className={styles.backpackShell}>
               <header className={styles.backpackHeader}>
-                <div>
-                  <p className={styles.backpackEyebrow}>Shared storage</p>
-                  <h2 className={styles.backpackTitle}>Backpack shelf</h2>
-                </div>
                 <button
                   type="button"
                   className={styles.panelClose}
@@ -1929,15 +1952,9 @@ export default function Home() {
               </header>
 
               {inventoryStatus === "loading" ? (
-                <div className={styles.backpackEmpty}>
-                  <p>Loading items...</p>
-                  <span>Shared items in this space will appear on the shelf.</span>
-                </div>
+                <div className={styles.backpackEmpty} aria-hidden="true" />
               ) : inventoryItems.length === 0 ? (
-                <div className={styles.backpackEmpty}>
-                  <p>No shared items yet.</p>
-                  <span>Add rows in `space_items` to place things on this shelf.</span>
-                </div>
+                <div className={styles.backpackEmpty} aria-hidden="true" />
               ) : (
                 <div className={styles.backpackShelfGrid}>
                   {inventoryItems.map((item) => (

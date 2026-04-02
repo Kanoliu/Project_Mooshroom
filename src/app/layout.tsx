@@ -4,7 +4,7 @@ import { PwaRegister } from "@/components/pwa-register";
 import "./globals.css";
 
 const vartigo = localFont({
-  src: "../../art-resources/Fonts/Vartigo.ttf",
+  src: "../../art-resources/Fonts/SenYeNaiChuanTi-2.ttf",
   variable: "--font-calendar",
   display: "swap",
 });

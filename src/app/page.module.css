@@ -450,8 +450,8 @@
   left: 50%;
   bottom: max(env(safe-area-inset-bottom, 0px), 0px);
   z-index: 9;
-  width: min(calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 24px), 540px);
-  max-width: 540px;
+  width: min(calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 12px), 590px);
+  max-width: 590px;
   opacity: 0;
   pointer-events: none;
   transform: translate(-50%, calc(100% + 20px));
@@ -463,10 +463,10 @@
 .backpackPanel {
   position: absolute;
   left: 50%;
-  bottom: max(env(safe-area-inset-bottom, 0px), 0px);
+  top: 52%;
   z-index: 9;
-  width: min(calc(100% - 24px), 560px);
-  max-width: 560px;
+  width: min(calc(100% - 24px), 720px);
+  max-width: 720px;
   opacity: 0;
   pointer-events: none;
   transform: translate(-50%, calc(100% + 20px));
@@ -486,17 +486,34 @@
 }
 
 .backpackPanelOpen {
-  transform: translate(-50%, -16px);
+  transform: translate(-50%, -50%);
   opacity: 1;
   pointer-events: auto;
+}
+
+.panelClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #000;
+  font: inherit;
+  font-size: 1.7rem;
+  line-height: 1;
+  cursor: pointer;
 }
 
 .backpackShell {
   position: relative;
   isolation: isolate;
   display: grid;
-  gap: 14px;
-  padding: 18px 18px 16px;
+  gap: 18px;
+  padding: 20px 20px 18px;
   border-radius: 28px;
   overflow: hidden;
   box-shadow:
@@ -524,47 +541,24 @@
 
 .backpackHeader {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.backpackEyebrow {
-  margin: 0 0 4px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(83, 49, 29, 0.64);
-}
-
-.backpackTitle {
-  margin: 0;
-  color: #2d180d;
-  font-size: 1.12rem;
-  font-weight: 800;
-  line-height: 1.2;
+  justify-content: flex-end;
 }
 
 .backpackShelfGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
-  max-height: 360px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  max-height: min(60vh, 520px);
   overflow-y: auto;
-  padding-right: 2px;
+  padding: 6px 4px 2px;
 }
 
 .backpackItemCard {
   display: grid;
-  grid-template-columns: 90px minmax(0, 1fr);
-  gap: 12px;
-  align-items: center;
-  padding: 12px;
-  border-radius: 20px;
-  background:
-    linear-gradient(180deg, rgba(255, 251, 245, 0.9) 0%, rgba(251, 243, 232, 0.82) 100%);
-  box-shadow: inset 0 0 0 1px rgba(123, 84, 54, 0.1);
+  place-items: center;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
 }
 
 .backpackItemFrame {
@@ -572,18 +566,16 @@
   display: grid;
   place-items: center;
   aspect-ratio: 1;
-  border-radius: 18px;
-  background:
-    linear-gradient(180deg, rgba(237, 216, 185, 0.95) 0%, rgba(214, 177, 132, 0.95) 100%);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    inset 0 0 0 1px rgba(133, 92, 59, 0.1);
+  width: 100%;
+  border-radius: 24px;
+  background: transparent;
+  box-shadow: none;
   overflow: hidden;
 }
 
 .backpackItemImage {
-  width: 72%;
-  height: 72%;
+  width: 86%;
+  height: 86%;
   object-fit: contain;
   display: block;
 }
@@ -602,8 +594,8 @@
 
 .backpackQuantity {
   position: absolute;
-  right: 8px;
-  bottom: 8px;
+  right: 10px;
+  bottom: 10px;
   min-width: 34px;
   min-height: 24px;
   padding: 0 8px;
@@ -617,64 +609,15 @@
 }
 
 .backpackItemMeta {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-}
-
-.backpackItemName {
-  margin: 0;
-  color: #2f180c;
-  font-size: 0.95rem;
-  font-weight: 800;
-  line-height: 1.2;
-}
-
-.backpackItemTags {
-  margin: 0;
-  color: rgba(47, 24, 12, 0.66);
-  font-size: 0.72rem;
-  font-weight: 700;
-  line-height: 1.3;
-  text-transform: uppercase;
-}
-
-.backpackItemDescription {
-  margin: 0;
-  color: rgba(47, 24, 12, 0.82);
-  font-size: 0.8rem;
-  line-height: 1.4;
-  word-break: break-word;
+  display: none;
 }
 
 .backpackEmpty {
-  display: grid;
-  place-items: center;
-  gap: 6px;
-  min-height: 180px;
-  padding: 18px;
-  border-radius: 22px;
-  background: rgba(255, 252, 247, 0.72);
-  color: rgba(47, 24, 12, 0.72);
-  text-align: center;
-}
-
-.backpackEmpty p {
-  margin: 0;
-  font-size: 0.98rem;
-  font-weight: 700;
-  color: #2f180c;
-}
-
-.backpackEmpty span {
-  font-size: 0.84rem;
+  min-height: min(52vh, 380px);
 }
 
 .backpackStatus {
-  margin: 0;
-  color: rgba(47, 24, 12, 0.72);
-  font-size: 0.76rem;
-  line-height: 1.35;
+  display: none;
 }
 
 .backpackStatusError {
@@ -729,17 +672,31 @@
 
 .calendarFooterSelect {
   width: auto;
-  min-width: 92px;
-  min-height: 38px;
-  padding: 0 16px;
-  border: 0;
+  min-width: 82px;
+  min-height: 32px;
+  padding: 0 30px 0 12px;
+  border: 1px solid rgba(111, 71, 45, 0.18);
   border-radius: 999px;
-  background: rgba(127, 82, 50, 0.14);
+  background:
+    linear-gradient(180deg, rgba(255, 251, 246, 0.96) 0%, rgba(242, 223, 201, 0.92) 100%);
   box-shadow:
-    0 10px 18px rgba(74, 49, 33, 0.14),
-    inset 0 0 0 1px rgba(111, 71, 45, 0.1);
-  font-size: 0.88rem;
-  font-weight: 700;
+    0 8px 14px rgba(74, 49, 33, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(95, 59, 37, 0.9) 50%),
+    linear-gradient(135deg, rgba(95, 59, 37, 0.9) 50%, transparent 50%),
+    linear-gradient(180deg, rgba(255, 251, 246, 0.96) 0%, rgba(242, 223, 201, 0.92) 100%);
+  background-position:
+    calc(100% - 14px) calc(50% - 1px),
+    calc(100% - 9px) calc(50% - 1px),
+    0 0;
+  background-size:
+    6px 6px,
+    6px 6px,
+    100% 100%;
+  background-repeat: no-repeat;
+  font-size: 1.08rem;
+  font-weight: 800;
   appearance: none;
   -webkit-appearance: none;
   cursor: pointer;
@@ -751,8 +708,9 @@
   max-height: none;
   resize: none;
   padding: 10px 10px 42px;
-  font-size: 0.74rem;
-  line-height: 1.28;
+  font-size: 1.14rem;
+  line-height: 1.52;
+  font-weight: 800;
   overflow: hidden;
   border: 0;
   outline: 0;
@@ -762,19 +720,19 @@
 }
 
 .calendarFooterSaveButton {
-  min-width: 92px;
-  min-height: 38px;
-  padding: 0 16px;
+  min-width: 74px;
+  min-height: 32px;
+  padding: 0 14px;
   border: 0;
   border-radius: 999px;
   background: rgba(127, 82, 50, 0.14);
   box-shadow:
-    0 10px 18px rgba(74, 49, 33, 0.14),
+    0 8px 14px rgba(74, 49, 33, 0.14),
     inset 0 0 0 1px rgba(111, 71, 45, 0.1);
   color: #000;
   font: inherit;
-  font-size: 0.88rem;
-  font-weight: 700;
+  font-size: 1.06rem;
+  font-weight: 800;
   cursor: pointer;
 }
 
@@ -787,7 +745,8 @@
 .calendarFooterStatus {
   margin: 0;
   color: rgba(47, 24, 12, 0.72);
-  font-size: 0.7rem;
+  font-size: 0.98rem;
+  font-weight: 700;
   line-height: 1.3;
 }
 
@@ -813,8 +772,8 @@
 
 .calendarAgendaEyebrow {
   margin: 0;
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: 0.92rem;
+  font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: rgba(83, 49, 29, 0.64);
@@ -823,7 +782,7 @@
 .calendarAgendaTitle {
   margin: 0;
   color: #2d180d;
-  font-size: 1.1rem;
+  font-size: 1.42rem;
   font-weight: 800;
   line-height: 1.2;
 }
@@ -843,8 +802,8 @@
   display: grid;
   gap: 6px;
   color: #3c2416;
-  font-size: 0.76rem;
-  font-weight: 700;
+  font-size: 1.02rem;
+  font-weight: 800;
 }
 
 .calendarSelect,
@@ -868,6 +827,8 @@
   min-height: 96px;
   resize: vertical;
   padding: 12px 14px;
+  font-size: 1.16rem;
+  font-weight: 800;
   line-height: 1.45;
 }
 
@@ -884,8 +845,8 @@
   background: #7d5132;
   color: #fff8f1;
   font: inherit;
-  font-size: 0.92rem;
-  font-weight: 700;
+  font-size: 1.12rem;
+  font-weight: 800;
   cursor: pointer;
 }
 
@@ -925,20 +886,21 @@
   border-radius: 999px;
   background: rgba(125, 81, 50, 0.14);
   color: #5d361f;
-  font-size: 0.74rem;
-  font-weight: 700;
+  font-size: 0.98rem;
+  font-weight: 800;
 }
 
 .calendarAgendaTime {
   color: rgba(83, 49, 29, 0.72);
-  font-size: 0.74rem;
+  font-size: 0.98rem;
+  font-weight: 700;
 }
 
 .calendarAgendaText {
   margin: 0;
   color: #2f180c;
-  font-size: 0.92rem;
-  font-weight: 600;
+  font-size: 1.18rem;
+  font-weight: 800;
   line-height: 1.4;
   word-break: break-word;
 }
@@ -956,14 +918,15 @@
 
 .calendarAgendaEmpty p {
   margin: 0;
-  font-size: 0.9rem;
-  font-weight: 600;
+  font-size: 1.12rem;
+  font-weight: 700;
 }
 
 .calendarAgendaStatus {
   margin: 0;
   color: rgba(47, 24, 12, 0.72);
-  font-size: 0.76rem;
+  font-size: 1rem;
+  font-weight: 700;
   line-height: 1.35;
 }
 
@@ -1068,7 +1031,7 @@
   .calendarTextarea,
   .calendarFooterSelect,
   .calendarFooterTextarea {
-    font-size: 16px;
+    font-size: 18px;
   }
 
   .resourceFrame {
@@ -1098,19 +1061,19 @@
   }
 
   .calendarPanel {
-    width: min(calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 8px), 468px);
-    max-width: 468px;
+    width: min(calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 4px), 502px);
+    max-width: 502px;
     bottom: max(2px, env(safe-area-inset-bottom, 0px));
   }
 
   .backpackPanel {
-    width: min(calc(100% - 8px), 468px);
-    max-width: 468px;
-    bottom: max(2px, env(safe-area-inset-bottom, 0px));
+    width: min(calc(100% - 8px), 520px);
+    max-width: 520px;
+    top: 54%;
   }
 
   .backpackPanelOpen {
-    transform: translate(-50%, -8px);
+    transform: translate(-50%, -50%);
   }
 
   .calendarPanelEditing {
@@ -1123,28 +1086,14 @@
     border-radius: 24px;
   }
 
-  .backpackTitle {
-    font-size: 0.98rem;
-  }
-
   .backpackShelfGrid {
-    grid-template-columns: 1fr;
-    max-height: 320px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    max-height: min(58vh, 430px);
+    gap: 12px;
   }
 
   .backpackItemCard {
-    grid-template-columns: 78px minmax(0, 1fr);
-    gap: 10px;
-    padding: 10px;
-    border-radius: 18px;
-  }
-
-  .backpackItemName {
-    font-size: 0.88rem;
-  }
-
-  .backpackItemDescription {
-    font-size: 0.76rem;
+    padding: 0;
   }
 
   .calendarAgenda {
@@ -1153,7 +1102,7 @@
   }
 
   .calendarAgendaTitle {
-    font-size: 0.98rem;
+    font-size: 1.18rem;
   }
 
   .calendarEventControls {
@@ -1163,7 +1112,11 @@
 
   .calendarTextarea {
     min-height: 84px;
-    font-size: 16px;
+    font-size: 18px;
+  }
+
+  .calendarFooterTextarea {
+    font-size: 18px;
   }
 
   .calendarSaveButton {
