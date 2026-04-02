@@ -250,7 +250,7 @@
   display: block;
   object-fit: contain;
   object-position: center;
-  transform: rotate(45deg);
+  transform: rotate(35deg);
   filter: drop-shadow(0 0.12rem 0.14rem rgba(84, 48, 28, 0.16));
 }
 
