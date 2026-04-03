@@ -47,6 +47,14 @@ type PetState = {
 type PetAction = "visit" | "note" | "calendar" | "feed" | "water";
 type PetActionResult = { error: string | null; petState: PetState | null };
 type SpaceMembershipResult = { error: string | null; spaceId: string | null; spaceName: string | null };
+type UserActivityType =
+  | "app_open"
+  | "visit"
+  | "join_space"
+  | "note_created"
+  | "calendar_updated"
+  | "feed"
+  | "water";
 
 type NotesState = {
   hasHydrated: boolean;
@@ -108,6 +116,7 @@ type InventoryStatus = "idle" | "loading" | "ready" | "error";
 const EVENT_TYPES: EventType[] = ["娱乐", "办事", "吃饭", "随记"];
 
 const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+const APP_OPEN_ACTIVITY_PREFIX = "user-activity:app-open";
 
 const petFrames = Array.from({ length: 60 }, (_, index) => {
   const frameNumber = String(index + 1).padStart(4, "0");
@@ -484,6 +493,7 @@ export default function Home() {
         result.spaceName ? `Space: ${result.spaceName}.` : "Enter an invite code to join a shared space.",
       );
       setHasResolvedAuthSession(true);
+      void logAppOpenActivity(user.id, result.spaceId);
     };
 
     void supabase.auth.getUser().then(({ data, error }) => {
@@ -799,6 +809,7 @@ export default function Home() {
 
       setPetState(result.petState);
       setSelectedPetStage(getStageFromStatus(result.petState.status));
+      void logUserActivity(currentUser.id, "visit", activeSpaceId);
     };
 
     void awardVisitXp();
@@ -1321,6 +1332,7 @@ export default function Home() {
       setActiveSpaceId(result.spaceId);
     }
 
+    void logUserActivity(currentUser.id, "join_space", result.spaceId);
     setCurrentSpaceName(result.spaceName);
     setInviteCode("");
     setAuthStatus("ready");
@@ -1368,12 +1380,13 @@ export default function Home() {
       setSelectedPetStage(getStageFromStatus(rewardResult.petState.status));
     }
 
-      setNotesStatus("ready");
-      pendingNoteReactionRef.current = true;
-      setDraft("");
-      setIsNoteEditing(false);
-      openNotesPanel();
-    };
+    void logUserActivity(currentUser.id, "note_created", activeSpaceId);
+    setNotesStatus("ready");
+    pendingNoteReactionRef.current = true;
+    setDraft("");
+    setIsNoteEditing(false);
+    openNotesPanel();
+  };
 
   const handleCalendarEventSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1444,6 +1457,9 @@ export default function Home() {
       setSelectedPetStage(getStageFromStatus(rewardResult.petState.status));
     }
 
+    if (parsedEvents.length > 0) {
+      void logUserActivity(currentUser.id, "calendar_updated", activeSpaceId);
+    }
     setCalendarEventsStatus("ready");
     setSelectedEventType("娱乐");
   };
@@ -1570,6 +1586,9 @@ export default function Home() {
 
     setPetState(result.petState);
     setSelectedPetStage(getStageFromStatus(result.petState.status));
+    if (currentUser) {
+      void logUserActivity(currentUser.id, "feed", activeSpaceId);
+    }
   };
 
   const waterPet = async () => {
@@ -1584,6 +1603,9 @@ export default function Home() {
 
     setPetState(result.petState);
     setSelectedPetStage(getStageFromStatus(result.petState.status));
+    if (currentUser) {
+      void logUserActivity(currentUser.id, "water", activeSpaceId);
+    }
   };
 
   return (
@@ -2156,6 +2178,35 @@ export default function Home() {
   );
 }
 
+async function logUserActivity(userId: string, activityType: UserActivityType, spaceId?: string | null) {
+  if (!supabase) {
+    return;
+  }
+
+  const { error } = await supabase.from("user_activity").insert({
+    user_id: userId,
+    space_id: spaceId ?? null,
+    activity_type: activityType,
+  });
+
+  if (error) {
+    console.error("Could not log user activity.", error);
+  }
+}
+
+async function logAppOpenActivity(userId: string, spaceId?: string | null) {
+  const activityKey = getAppOpenActivityStorageKey(userId);
+  if (typeof window !== "undefined" && window.sessionStorage.getItem(activityKey) === "1") {
+    return;
+  }
+
+  await logUserActivity(userId, "app_open", spaceId);
+
+  if (typeof window !== "undefined") {
+    window.sessionStorage.setItem(activityKey, "1");
+  }
+}
+
 async function ensureInitialSpaceMembership(userId: string): Promise<SpaceMembershipResult> {
   const preferredSpaceId = readPreferredSpaceId(userId);
   if (preferredSpaceId) {
@@ -2616,6 +2667,10 @@ function markDailyPetActionClaimed(spaceId: string, action: PetAction, userId?: 
 
 function getDailyPetActionStorageKey(spaceId: string, action: PetAction, userId?: string | null) {
   return ["pet-action", spaceId, userId ?? "guest", getTodayDateValue(), action].join(":");
+}
+
+function getAppOpenActivityStorageKey(userId: string) {
+  return [APP_OPEN_ACTIVITY_PREFIX, userId, getTodayDateValue()].join(":");
 }
 
 function getStageFromStatus(status: PetStatusValue): PetStageId {
