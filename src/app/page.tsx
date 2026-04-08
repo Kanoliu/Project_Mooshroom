@@ -46,6 +46,7 @@ type PetState = {
 
 type PetAction = "visit" | "note" | "calendar" | "feed" | "water";
 type PetActionResult = { error: string | null; petState: PetState | null };
+type DigRewardResult = { error: string | null; item: SpaceInventoryItem | null };
 type SpaceMembershipResult = { error: string | null; spaceId: string | null; spaceName: string | null };
 type UserActivityType =
   | "app_open"
@@ -54,7 +55,8 @@ type UserActivityType =
   | "note_created"
   | "calendar_updated"
   | "feed"
-  | "water";
+  | "water"
+  | "dig";
 
 type NotesState = {
   hasHydrated: boolean;
@@ -348,6 +350,8 @@ export default function Home() {
   const [hasHydratedCalendarEvents, setHasHydratedCalendarEvents] = useState(false);
   const [inventoryStatus, setInventoryStatus] = useState<InventoryStatus>("idle");
   const [inventoryItems, setInventoryItems] = useState<SpaceInventoryItem[]>([]);
+  const [digRewardItem, setDigRewardItem] = useState<SpaceInventoryItem | null>(null);
+  const [isDiggingForReward, setIsDiggingForReward] = useState(false);
   const [notesState, dispatch] = useReducer(notesReducer, {
     hasHydrated: false,
     notes: [],
@@ -394,6 +398,7 @@ export default function Home() {
   const pendingNoteReactionRef = useRef(false);
   const foodDragRef = useRef<DragState | null>(null);
   const kettleDragRef = useRef<DragState | null>(null);
+  const digRewardTimeoutRef = useRef<number | null>(null);
 
   const resetWindowViewport = () => {
     window.setTimeout(() => {
@@ -441,6 +446,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    return () => {
+      if (digRewardTimeoutRef.current !== null) {
+        window.clearTimeout(digRewardTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
     if (!supabase) {
       return;
     }
@@ -464,6 +477,8 @@ export default function Home() {
         setCalendarEventsStatus("idle");
         setInventoryItems([]);
         setInventoryStatus("idle");
+        setDigRewardItem(null);
+        setIsDiggingForReward(false);
         setAuthStatus("idle");
         setAuthMessage(null);
         setHasResolvedAuthSession(true);
@@ -681,6 +696,8 @@ export default function Home() {
         setPetState({ status: "0", nutrition: 0, xp: 0 });
         setSelectedPetStage("stage0");
         setHasResolvedPetStage(true);
+        setDigRewardItem(null);
+        setIsDiggingForReward(false);
       }, 0);
       return () => window.clearTimeout(resetTimeout);
     }
@@ -690,6 +707,8 @@ export default function Home() {
         setPetState({ status: "0", nutrition: 0, xp: 0 });
         setSelectedPetStage("stage0");
         setHasResolvedPetStage(true);
+        setDigRewardItem(null);
+        setIsDiggingForReward(false);
       }, 0);
       return () => window.clearTimeout(resetTimeout);
     }
@@ -780,6 +799,18 @@ export default function Home() {
           event: "*",
           schema: "public",
           table: "space_items",
+          filter: `space_id=eq.${activeSpaceId}`,
+        },
+        () => {
+          void loadInventory();
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "space_item",
           filter: `space_id=eq.${activeSpaceId}`,
         },
         () => {
@@ -929,6 +960,9 @@ export default function Home() {
         setCurrentFrame((frame) => {
           if (shouldPlayOnce && frame >= activeFrames.length - 1) {
             window.setTimeout(() => {
+              if (petAnimation === "dig") {
+                setIsDiggingForReward(false);
+              }
               setPetAnimation("idle");
               setCurrentFrame(0);
             }, 0);
@@ -1018,6 +1052,40 @@ export default function Home() {
   const triggerWaterEffect = () => {
     setCurrentWaterEffectFrame(0);
     setIsWaterEffectPlaying(true);
+  };
+
+  const showDigReward = (item: SpaceInventoryItem) => {
+    if (digRewardTimeoutRef.current !== null) {
+      window.clearTimeout(digRewardTimeoutRef.current);
+    }
+
+    setDigRewardItem(item);
+    digRewardTimeoutRef.current = window.setTimeout(() => {
+      setDigRewardItem(null);
+      digRewardTimeoutRef.current = null;
+    }, 2800);
+  };
+
+  const handleDigForTreasure = async () => {
+    if (!activeSpaceId || !currentUser || selectedPetStage !== "pet" || petState.nutrition <= 10 || isDiggingForReward) {
+      return;
+    }
+
+    setIsDiggingForReward(true);
+    setCurrentFrame(0);
+    setPetAnimation("dig");
+
+    const rewardResult = await awardRandomSpaceItem(activeSpaceId, currentUser.id);
+    if (rewardResult.error || !rewardResult.item) {
+      setIsDiggingForReward(false);
+      return;
+    }
+
+    const rewardedItem = rewardResult.item;
+    setInventoryItems((currentItems) => mergeInventoryItems(currentItems, rewardedItem));
+    setInventoryStatus("ready");
+    showDigReward(rewardedItem);
+    void logUserActivity(currentUser.id, "dig", activeSpaceId);
   };
 
   useEffect(() => {
@@ -1567,6 +1635,11 @@ export default function Home() {
   const activeWaterEffectFrame = isWaterEffectPlaying
     ? waterEffectFrames[currentWaterEffectFrame] ?? null
     : null;
+  const canShowDigPrompt =
+    selectedPetStage === "pet" &&
+    petState.nutrition > 10 &&
+    Boolean(activeSpaceId) &&
+    Boolean(currentUser);
   const preloadPercent = displayedPreloadPercent;
   const shouldShowLoadingScreen =
     !hasResolvedAuthSession ||
@@ -1958,6 +2031,61 @@ export default function Home() {
               selectedPetStage !== "pet" ? styles.petStagePreview : ""
             }`}
           >
+            {canShowDigPrompt ? (
+              <button
+                type="button"
+                className={styles.petThoughtBubble}
+                onClick={handleDigForTreasure}
+                disabled={isDiggingForReward}
+                aria-label={isDiggingForReward ? "Digging for treasure" : "Ask Mooshroom to dig for treasure"}
+              >
+                <span className={styles.petThoughtBubbleMain}>
+                  <Image
+                    src="/art/ui/shovel.webp"
+                    alt=""
+                    width={40}
+                    height={40}
+                    unoptimized
+                    className={styles.petThoughtBubbleIcon}
+                  />
+                </span>
+                <span className={styles.petThoughtBubbleDotLarge} aria-hidden="true" />
+                <span className={styles.petThoughtBubbleDotSmall} aria-hidden="true" />
+              </button>
+            ) : null}
+
+            {digRewardItem ? (
+              <div className={styles.digRewardPopup} role="status" aria-live="polite">
+                <div className={styles.digRewardInner}>
+                  <p className={styles.digRewardEyebrow}>Treasure found</p>
+                  <div className={styles.digRewardBody}>
+                    <div className={styles.digRewardArtwork}>
+                      {digRewardItem.imageUrl ? (
+                        <img
+                          src={digRewardItem.imageUrl}
+                          alt={digRewardItem.name}
+                          className={styles.digRewardImage}
+                          loading="eager"
+                          draggable={false}
+                        />
+                      ) : (
+                        <div className={styles.digRewardFallback} aria-hidden="true">
+                          {digRewardItem.name.slice(0, 1).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <div className={styles.digRewardMeta}>
+                      <p className={styles.digRewardName}>{digRewardItem.name}</p>
+                      <p className={styles.digRewardDetails}>
+                        {[digRewardItem.type, digRewardItem.rarity].filter(Boolean).join(" · ")}
+                      </p>
+                      <p className={styles.digRewardQuantity}>Now in backpack: x{digRewardItem.quantity}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
             <div className={styles.petGlow} />
             <button
               ref={petButtonRef}
@@ -2183,14 +2311,14 @@ async function logUserActivity(userId: string, activityType: UserActivityType, s
     return;
   }
 
-  const { error } = await supabase.from("user_activity").insert({
-    user_id: userId,
-    space_id: spaceId ?? null,
-    activity_type: activityType,
+  const { error } = await supabase.rpc("log_user_activity", {
+    p_activity_type: activityType,
+    p_space_id: spaceId ?? null,
+    p_user_id: userId,
   });
 
   if (error) {
-    console.error("Could not log user activity.", error);
+    console.error(`Could not log user activity (${activityType}).`, error.message, error);
   }
 }
 
@@ -2434,14 +2562,69 @@ async function fetchInventoryForSpace(spaceId: string) {
         } satisfies SpaceInventoryItem;
       })
       .filter((item): item is SpaceInventoryItem => item !== null)
-      .sort((left, right) => {
-        if (right.quantity !== left.quantity) {
-          return right.quantity - left.quantity;
-        }
-
-        return left.name.localeCompare(right.name);
-      }),
+      .sort(sortInventoryItems),
   };
+}
+
+async function awardRandomSpaceItem(spaceId: string, userId: string): Promise<DigRewardResult> {
+  if (!supabase) {
+    return { error: "Supabase is not configured.", item: null };
+  }
+
+  const { data, error } = await supabase.rpc("award_random_space_item", {
+    p_space_id: spaceId,
+    p_user_id: userId,
+  });
+
+  if (error) {
+    console.error("Could not award dig reward.", error.message, error);
+    return { error: error.message, item: null };
+  }
+
+  const rewardRow = Array.isArray(data) ? data[0] : data;
+  if (!rewardRow) {
+    return { error: "Dig completed without a reward item.", item: null };
+  }
+
+  return {
+    error: null,
+    item: {
+      id: String(rewardRow.inventory_id),
+      itemId: String(rewardRow.item_id),
+      quantity: Number(rewardRow.quantity ?? 1),
+      name: rewardRow.name ?? "Unknown item",
+      type: rewardRow.type ?? "",
+      rarity: rewardRow.rarity ?? "",
+      description: rewardRow.description ?? "",
+      imageUrl: rewardRow.image_url ?? "",
+    },
+  };
+}
+
+function mergeInventoryItems(items: SpaceInventoryItem[], rewardedItem: SpaceInventoryItem) {
+  const nextItems = [...items];
+  const existingIndex = nextItems.findIndex(
+    (item) => item.id === rewardedItem.id || item.itemId === rewardedItem.itemId,
+  );
+
+  if (existingIndex >= 0) {
+    nextItems[existingIndex] = {
+      ...nextItems[existingIndex],
+      ...rewardedItem,
+    };
+  } else {
+    nextItems.unshift(rewardedItem);
+  }
+
+  return nextItems.sort(sortInventoryItems);
+}
+
+function sortInventoryItems(left: SpaceInventoryItem, right: SpaceInventoryItem) {
+  if (right.quantity !== left.quantity) {
+    return right.quantity - left.quantity;
+  }
+
+  return left.name.localeCompare(right.name);
 }
 
 async function fetchSpaceItemsRows(spaceId: string, tableName: "space_items" | "space_item") {
