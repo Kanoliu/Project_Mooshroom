@@ -1067,7 +1067,7 @@ export default function Home() {
   };
 
   const handleDigForTreasure = async () => {
-    if (!activeSpaceId || !currentUser || selectedPetStage !== "pet" || petState.nutrition <= 10 || isDiggingForReward) {
+    if (!activeSpaceId || !currentUser || selectedPetStage !== "pet" || petState.xp <= 10 || isDiggingForReward) {
       return;
     }
 
@@ -1637,7 +1637,7 @@ export default function Home() {
     : null;
   const canShowDigPrompt =
     selectedPetStage === "pet" &&
-    petState.nutrition > 10 &&
+    petState.xp > 10 &&
     Boolean(activeSpaceId) &&
     Boolean(currentUser);
   const preloadPercent = displayedPreloadPercent;
@@ -2311,14 +2311,31 @@ async function logUserActivity(userId: string, activityType: UserActivityType, s
     return;
   }
 
-  const { error } = await supabase.rpc("log_user_activity", {
+  const rpcResult = await supabase.rpc("log_user_activity", {
     p_activity_type: activityType,
     p_space_id: spaceId ?? null,
     p_user_id: userId,
   });
 
-  if (error) {
-    console.error(`Could not log user activity (${activityType}).`, error.message, error);
+  if (!rpcResult.error) {
+    return;
+  }
+
+  const insertResult = await supabase.from("user_activity").insert({
+    user_id: userId,
+    space_id: spaceId ?? null,
+    activity_type: activityType,
+  });
+
+  if (insertResult.error) {
+    console.error(
+      `Could not log user activity (${activityType}).`,
+      "RPC error:",
+      rpcResult.error.message,
+      "Insert error:",
+      insertResult.error.message,
+      { rpcError: rpcResult.error, insertError: insertResult.error },
+    );
   }
 }
 
@@ -2571,34 +2588,45 @@ async function awardRandomSpaceItem(spaceId: string, userId: string): Promise<Di
     return { error: "Supabase is not configured.", item: null };
   }
 
-  const { data, error } = await supabase.rpc("award_random_space_item", {
+  const rpcResult = await supabase.rpc("award_random_space_item", {
     p_space_id: spaceId,
     p_user_id: userId,
   });
 
-  if (error) {
-    console.error("Could not award dig reward.", error.message, error);
-    return { error: error.message, item: null };
+  if (!rpcResult.error) {
+    const rewardRow = Array.isArray(rpcResult.data) ? rpcResult.data[0] : rpcResult.data;
+    if (!rewardRow) {
+      return { error: "Dig completed without a reward item.", item: null };
+    }
+
+    return {
+      error: null,
+      item: {
+        id: String(rewardRow.inventory_id),
+        itemId: String(rewardRow.item_id),
+        quantity: Number(rewardRow.quantity ?? 1),
+        name: rewardRow.name ?? "Unknown item",
+        type: rewardRow.type ?? "",
+        rarity: rewardRow.rarity ?? "",
+        description: rewardRow.description ?? "",
+        imageUrl: rewardRow.image_url ?? "",
+      },
+    };
   }
 
-  const rewardRow = Array.isArray(data) ? data[0] : data;
-  if (!rewardRow) {
-    return { error: "Dig completed without a reward item.", item: null };
+  const fallbackResult = await awardRandomSpaceItemFallback(spaceId, userId);
+  if (fallbackResult.error) {
+    console.error(
+      "Could not award dig reward.",
+      "RPC error:",
+      rpcResult.error.message,
+      "Fallback error:",
+      fallbackResult.error,
+      { rpcError: rpcResult.error },
+    );
   }
 
-  return {
-    error: null,
-    item: {
-      id: String(rewardRow.inventory_id),
-      itemId: String(rewardRow.item_id),
-      quantity: Number(rewardRow.quantity ?? 1),
-      name: rewardRow.name ?? "Unknown item",
-      type: rewardRow.type ?? "",
-      rarity: rewardRow.rarity ?? "",
-      description: rewardRow.description ?? "",
-      imageUrl: rewardRow.image_url ?? "",
-    },
-  };
+  return fallbackResult;
 }
 
 function mergeInventoryItems(items: SpaceInventoryItem[], rewardedItem: SpaceInventoryItem) {
@@ -2625,6 +2653,115 @@ function sortInventoryItems(left: SpaceInventoryItem, right: SpaceInventoryItem)
   }
 
   return left.name.localeCompare(right.name);
+}
+
+async function awardRandomSpaceItemFallback(spaceId: string, _userId: string): Promise<DigRewardResult> {
+  if (!supabase) {
+    return { error: "Supabase is not configured.", item: null };
+  }
+
+  const { data: itemsData, error: itemsError } = await supabase
+    .from("items")
+    .select("id, name, type, rarity, description, image_url");
+
+  if (itemsError) {
+    return { error: itemsError.message, item: null };
+  }
+
+  const availableItems = (itemsData ?? []).filter((item) => item.id);
+  if (availableItems.length === 0) {
+    return { error: "No items are available for dig rewards.", item: null };
+  }
+
+  const selectedItem = availableItems[Math.floor(Math.random() * availableItems.length)];
+  const primaryResult = await upsertSpaceInventoryReward("space_items", spaceId, selectedItem.id);
+  const inventoryResult =
+    primaryResult.error && primaryResult.error.includes("relation")
+      ? await upsertSpaceInventoryReward("space_item", spaceId, selectedItem.id)
+      : primaryResult;
+
+  if (inventoryResult.error || !inventoryResult.row) {
+    return { error: inventoryResult.error ?? "Could not write dig reward to inventory.", item: null };
+  }
+
+  return {
+    error: null,
+    item: {
+      id: inventoryResult.row.id,
+      itemId: String(selectedItem.id),
+      quantity: inventoryResult.row.quantity,
+      name: selectedItem.name ?? "Unknown item",
+      type: selectedItem.type ?? "",
+      rarity: selectedItem.rarity ?? "",
+      description: selectedItem.description ?? "",
+      imageUrl: selectedItem.image_url ?? "",
+    },
+  };
+}
+
+async function upsertSpaceInventoryReward(
+  tableName: "space_items" | "space_item",
+  spaceId: string,
+  itemId: string,
+) {
+  if (!supabase) {
+    return { error: "Supabase is not configured.", row: null as { id: string; quantity: number } | null };
+  }
+
+  const { data: existingRow, error: existingError } = await supabase
+    .from(tableName)
+    .select("id, quantity")
+    .eq("space_id", spaceId)
+    .eq("item_id", itemId)
+    .maybeSingle();
+
+  if (existingError) {
+    return { error: existingError.message, row: null as { id: string; quantity: number } | null };
+  }
+
+  if (!existingRow) {
+    const { data: insertedRow, error: insertError } = await supabase
+      .from(tableName)
+      .insert({
+        space_id: spaceId,
+        item_id: itemId,
+        quantity: 1,
+      })
+      .select("id, quantity")
+      .single();
+
+    if (insertError) {
+      return { error: insertError.message, row: null as { id: string; quantity: number } | null };
+    }
+
+    return {
+      error: null,
+      row: {
+        id: String(insertedRow.id),
+        quantity: Number(insertedRow.quantity ?? 1),
+      },
+    };
+  }
+
+  const nextQuantity = Number(existingRow.quantity ?? 0) + 1;
+  const { data: updatedRow, error: updateError } = await supabase
+    .from(tableName)
+    .update({ quantity: nextQuantity })
+    .eq("id", existingRow.id)
+    .select("id, quantity")
+    .single();
+
+  if (updateError) {
+    return { error: updateError.message, row: null as { id: string; quantity: number } | null };
+  }
+
+  return {
+    error: null,
+    row: {
+      id: String(updatedRow.id),
+      quantity: Number(updatedRow.quantity ?? nextQuantity),
+    },
+  };
 }
 
 async function fetchSpaceItemsRows(spaceId: string, tableName: "space_items" | "space_item") {
