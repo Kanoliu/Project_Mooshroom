@@ -47,6 +47,13 @@ type PetState = {
 type PetAction = "visit" | "note" | "calendar" | "feed" | "water";
 type PetActionResult = { error: string | null; petState: PetState | null };
 type DigRewardResult = { error: string | null; item: SpaceInventoryItem | null };
+type DigSequenceResult = {
+  error: string | null;
+  item: SpaceInventoryItem | null;
+  petState: PetState | null;
+  userId: string;
+  spaceId: string;
+};
 type SpaceMembershipResult = { error: string | null; spaceId: string | null; spaceName: string | null };
 type UserActivityType =
   | "app_open"
@@ -402,6 +409,8 @@ export default function Home() {
   const foodDragRef = useRef<DragState | null>(null);
   const kettleDragRef = useRef<DragState | null>(null);
   const digRewardTimeoutRef = useRef<number | null>(null);
+  const pendingDigSequenceRef = useRef<Promise<DigSequenceResult> | null>(null);
+  const finishDigSequenceRef = useRef<() => Promise<void>>(async () => {});
 
   const resetWindowViewport = () => {
     window.setTimeout(() => {
@@ -482,6 +491,7 @@ export default function Home() {
         setInventoryStatus("idle");
         setDigRewardItem(null);
         setIsDiggingForReward(false);
+        pendingDigSequenceRef.current = null;
         setAuthStatus("idle");
         setAuthMessage(null);
         setHasResolvedAuthSession(true);
@@ -701,6 +711,7 @@ export default function Home() {
         setHasResolvedPetStage(true);
         setDigRewardItem(null);
         setIsDiggingForReward(false);
+        pendingDigSequenceRef.current = null;
       }, 0);
       return () => window.clearTimeout(resetTimeout);
     }
@@ -712,6 +723,7 @@ export default function Home() {
         setHasResolvedPetStage(true);
         setDigRewardItem(null);
         setIsDiggingForReward(false);
+        pendingDigSequenceRef.current = null;
       }, 0);
       return () => window.clearTimeout(resetTimeout);
     }
@@ -854,10 +866,25 @@ export default function Home() {
   }, [activeSpaceId, currentUser]);
 
   const sceneAssetUrls = useMemo(() => {
-    const stageFramesToPreload =
-      activeSpaceId && !hasResolvedPetStage ? [] : getActivePetFrames(selectedPetStage, "idle");
+    if (activeSpaceId && !hasResolvedPetStage) {
+      return BASE_SCENE_ASSET_URLS;
+    }
 
-    return Array.from(new Set([...BASE_SCENE_ASSET_URLS, ...stageFramesToPreload]));
+    const petAnimationFrames =
+      selectedPetStage === "pet"
+        ? [
+            ...petFrames,
+            ...petNoteFrames,
+            ...petReactFrames,
+            ...petEatFrames,
+            ...petWaterFrames,
+            ...petDigFrames,
+          ]
+        : selectedPetStage === "stage3"
+          ? [...petStageFrames.stage3, ...stage3PetReactFrames]
+          : petStageFrames[selectedPetStage];
+
+    return Array.from(new Set([...BASE_SCENE_ASSET_URLS, ...petAnimationFrames]));
   }, [activeSpaceId, hasResolvedPetStage, selectedPetStage]);
 
   useEffect(() => {
@@ -964,7 +991,8 @@ export default function Home() {
           if (shouldPlayOnce && frame >= activeFrames.length - 1) {
             window.setTimeout(() => {
               if (petAnimation === "dig") {
-                setIsDiggingForReward(false);
+                void finishDigSequenceRef.current();
+                return;
               }
               setPetAnimation("idle");
               setCurrentFrame(0);
@@ -1069,26 +1097,41 @@ export default function Home() {
     }, 2800);
   };
 
-  const handleDigForTreasure = async () => {
-    if (!activeSpaceId || !currentUser || selectedPetStage !== "pet" || petState.xp <= 10 || isDiggingForReward) {
+  const finishDigSequence = async () => {
+    const pendingSequence = pendingDigSequenceRef.current;
+    pendingDigSequenceRef.current = null;
+    setPetAnimation("idle");
+    setCurrentFrame(0);
+    setIsDiggingForReward(false);
+
+    if (!pendingSequence) {
+      return;
+    }
+
+    const digResult = await pendingSequence;
+    if (digResult.error || !digResult.item || !digResult.petState) {
+      return;
+    }
+
+    const rewardedItem = digResult.item;
+    setPetState(digResult.petState);
+    setInventoryItems((currentItems) => mergeInventoryItems(currentItems, rewardedItem));
+    setInventoryStatus("ready");
+    showDigReward(rewardedItem);
+    void logUserActivity(digResult.userId, "dig", digResult.spaceId);
+  };
+  finishDigSequenceRef.current = finishDigSequence;
+
+  const handleDigForTreasure = () => {
+    if (!activeSpaceId || !currentUser || selectedPetStage !== "pet" || petState.xp < 10 || isDiggingForReward) {
       return;
     }
 
     setIsDiggingForReward(true);
+    setDigRewardItem(null);
     setCurrentFrame(0);
     setPetAnimation("dig");
-
-    const rewardResult = await awardRandomSpaceItem(activeSpaceId, currentUser.id);
-    if (rewardResult.error || !rewardResult.item) {
-      setIsDiggingForReward(false);
-      return;
-    }
-
-    const rewardedItem = rewardResult.item;
-    setInventoryItems((currentItems) => mergeInventoryItems(currentItems, rewardedItem));
-    setInventoryStatus("ready");
-    showDigReward(rewardedItem);
-    void logUserActivity(currentUser.id, "dig", activeSpaceId);
+    pendingDigSequenceRef.current = resolveDigSequence(activeSpaceId, currentUser.id, petState);
   };
 
   useEffect(() => {
@@ -1640,7 +1683,7 @@ export default function Home() {
     : null;
   const canShowDigPrompt =
     selectedPetStage === "pet" &&
-    petState.xp > 10 &&
+    petState.xp >= 10 &&
     Boolean(activeSpaceId) &&
     Boolean(currentUser);
   const preloadPercent = displayedPreloadPercent;
@@ -2651,6 +2694,79 @@ async function awardRandomSpaceItem(spaceId: string, userId: string): Promise<Di
   return fallbackResult;
 }
 
+async function resolveDigSequence(
+  spaceId: string,
+  userId: string,
+  currentPetState: PetState,
+): Promise<DigSequenceResult> {
+  if (currentPetState.xp < 10) {
+    return {
+      error: "Mooshroom needs at least 10 XP to dig.",
+      item: null,
+      petState: null,
+      userId,
+      spaceId,
+    };
+  }
+
+  const nextPetState: PetState = {
+    ...currentPetState,
+    xp: Math.max(0, currentPetState.xp - 10),
+  };
+
+  const spendResult = await spendPetXpForDig(spaceId, nextPetState);
+  if (spendResult.error) {
+    return {
+      error: spendResult.error,
+      item: null,
+      petState: null,
+      userId,
+      spaceId,
+    };
+  }
+
+  const rewardResult = await awardRandomSpaceItem(spaceId, userId);
+  if (rewardResult.error || !rewardResult.item) {
+    return {
+      error: rewardResult.error ?? "Dig completed without an item reward.",
+      item: null,
+      petState: null,
+      userId,
+      spaceId,
+    };
+  }
+
+  return {
+    error: null,
+    item: rewardResult.item,
+    petState: nextPetState,
+    userId,
+    spaceId,
+  };
+}
+
+async function spendPetXpForDig(spaceId: string, nextPetState: PetState) {
+  if (!supabase) {
+    return { error: "Supabase is not configured." };
+  }
+
+  const { error } = await supabase
+    .from("pet_state")
+    .update({
+      xp: nextPetState.xp,
+      Nutrition: nextPetState.nutrition,
+      Status: nextPetState.status,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("space_id", spaceId);
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  return { error: null };
+}
+
 function mergeInventoryItems(items: SpaceInventoryItem[], rewardedItem: SpaceInventoryItem) {
   const nextItems = [...items];
   const existingIndex = nextItems.findIndex(
@@ -2937,10 +3053,20 @@ async function applyPetActionFallback(
   }
 
   const currentState = currentStateResult.petState;
-  const isDailyLimitedAction = action === "visit" || action === "feed" || action === "water";
+  const isDailyLimitedAction = true;
   const actionAlreadyClaimed = isDailyLimitedAction && hasClaimedDailyPetAction(spaceId, action, userId ?? null);
-  const xpDelta = actionAlreadyClaimed ? 0 : 1;
-  const nutritionDelta = action === "water" && !actionAlreadyClaimed ? 1 : 0;
+  const xpDelta =
+    actionAlreadyClaimed || action === "visit"
+      ? 0
+      : action === "feed" || action === "water" || action === "note" || action === "calendar"
+        ? 1
+        : 0;
+  const nutritionDelta =
+    actionAlreadyClaimed
+      ? 0
+      : action === "visit" || action === "water"
+        ? 1
+        : 0;
 
   if (xpDelta === 0 && nutritionDelta === 0) {
     return { error: null, petState: currentState };
