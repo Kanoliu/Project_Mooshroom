@@ -119,6 +119,9 @@ const EVENT_TYPES: EventType[] = ["娱乐", "办事", "吃饭", "随记"];
 
 const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
 const APP_OPEN_ACTIVITY_PREFIX = "user-activity:app-open";
+let hasLogUserActivityRpc: boolean | null = null;
+let hasAwardRandomSpaceItemRpc: boolean | null = null;
+let hasApplyPetActionRpc: boolean | null = null;
 
 const petFrames = Array.from({ length: 60 }, (_, index) => {
   const frameNumber = String(index + 1).padStart(4, "0");
@@ -2311,14 +2314,24 @@ async function logUserActivity(userId: string, activityType: UserActivityType, s
     return;
   }
 
-  const rpcResult = await supabase.rpc("log_user_activity", {
-    p_activity_type: activityType,
-    p_space_id: spaceId ?? null,
-    p_user_id: userId,
-  });
+  let rpcErrorMessage: string | null = null;
 
-  if (!rpcResult.error) {
-    return;
+  if (hasLogUserActivityRpc !== false) {
+    const rpcResult = await supabase.rpc("log_user_activity", {
+      p_activity_type: activityType,
+      p_space_id: spaceId ?? null,
+      p_user_id: userId,
+    });
+
+    if (!rpcResult.error) {
+      hasLogUserActivityRpc = true;
+      return;
+    }
+
+    rpcErrorMessage = rpcResult.error.message;
+    if (isMissingRpcError(rpcResult.error.message)) {
+      hasLogUserActivityRpc = false;
+    }
   }
 
   const insertResult = await supabase.from("user_activity").insert({
@@ -2331,10 +2344,10 @@ async function logUserActivity(userId: string, activityType: UserActivityType, s
     console.error(
       `Could not log user activity (${activityType}).`,
       "RPC error:",
-      rpcResult.error.message,
+      rpcErrorMessage,
       "Insert error:",
       insertResult.error.message,
-      { rpcError: rpcResult.error, insertError: insertResult.error },
+      { insertError: insertResult.error },
     );
   }
 }
@@ -2588,30 +2601,40 @@ async function awardRandomSpaceItem(spaceId: string, userId: string): Promise<Di
     return { error: "Supabase is not configured.", item: null };
   }
 
-  const rpcResult = await supabase.rpc("award_random_space_item", {
-    p_space_id: spaceId,
-    p_user_id: userId,
-  });
+  let rpcErrorMessage: string | null = null;
 
-  if (!rpcResult.error) {
-    const rewardRow = Array.isArray(rpcResult.data) ? rpcResult.data[0] : rpcResult.data;
-    if (!rewardRow) {
-      return { error: "Dig completed without a reward item.", item: null };
+  if (hasAwardRandomSpaceItemRpc !== false) {
+    const rpcResult = await supabase.rpc("award_random_space_item", {
+      p_space_id: spaceId,
+      p_user_id: userId,
+    });
+
+    if (!rpcResult.error) {
+      hasAwardRandomSpaceItemRpc = true;
+      const rewardRow = Array.isArray(rpcResult.data) ? rpcResult.data[0] : rpcResult.data;
+      if (!rewardRow) {
+        return { error: "Dig completed without a reward item.", item: null };
+      }
+
+      return {
+        error: null,
+        item: {
+          id: String(rewardRow.inventory_id),
+          itemId: String(rewardRow.item_id),
+          quantity: Number(rewardRow.quantity ?? 1),
+          name: rewardRow.name ?? "Unknown item",
+          type: rewardRow.type ?? "",
+          rarity: rewardRow.rarity ?? "",
+          description: rewardRow.description ?? "",
+          imageUrl: rewardRow.image_url ?? "",
+        },
+      };
     }
 
-    return {
-      error: null,
-      item: {
-        id: String(rewardRow.inventory_id),
-        itemId: String(rewardRow.item_id),
-        quantity: Number(rewardRow.quantity ?? 1),
-        name: rewardRow.name ?? "Unknown item",
-        type: rewardRow.type ?? "",
-        rarity: rewardRow.rarity ?? "",
-        description: rewardRow.description ?? "",
-        imageUrl: rewardRow.image_url ?? "",
-      },
-    };
+    rpcErrorMessage = rpcResult.error.message;
+    if (isMissingRpcError(rpcResult.error.message)) {
+      hasAwardRandomSpaceItemRpc = false;
+    }
   }
 
   const fallbackResult = await awardRandomSpaceItemFallback(spaceId, userId);
@@ -2619,10 +2642,9 @@ async function awardRandomSpaceItem(spaceId: string, userId: string): Promise<Di
     console.error(
       "Could not award dig reward.",
       "RPC error:",
-      rpcResult.error.message,
+      rpcErrorMessage,
       "Fallback error:",
       fallbackResult.error,
-      { rpcError: rpcResult.error },
     );
   }
 
@@ -2653,6 +2675,14 @@ function sortInventoryItems(left: SpaceInventoryItem, right: SpaceInventoryItem)
   }
 
   return left.name.localeCompare(right.name);
+}
+
+function isMissingRpcError(message: string | null | undefined) {
+  if (!message) {
+    return false;
+  }
+
+  return message.includes("Could not find the function") || message.includes("404");
 }
 
 async function awardRandomSpaceItemFallback(spaceId: string, _userId: string): Promise<DigRewardResult> {
@@ -2860,26 +2890,33 @@ async function applyPetAction(spaceId: string, action: PetAction, userId?: strin
     return { error: "Supabase is not configured.", petState: null as PetState | null };
   }
 
-  const { data, error } = await supabase.rpc("apply_pet_action", {
-    p_space_id: spaceId,
-    p_action: action,
-    p_user_id: userId ?? null,
-  });
+  if (hasApplyPetActionRpc !== false) {
+    const { data, error } = await supabase.rpc("apply_pet_action", {
+      p_space_id: spaceId,
+      p_action: action,
+      p_user_id: userId ?? null,
+    });
 
-  if (!error) {
-    const petSnapshot = Array.isArray(data) ? data[0] : data;
-    if (!petSnapshot) {
-      return { error: "Pet action completed without a state update.", petState: null as PetState | null };
+    if (!error) {
+      hasApplyPetActionRpc = true;
+      const petSnapshot = Array.isArray(data) ? data[0] : data;
+      if (!petSnapshot) {
+        return { error: "Pet action completed without a state update.", petState: null as PetState | null };
+      }
+
+      return {
+        error: null,
+        petState: {
+          status: normalizePetStatusValue(petSnapshot.status),
+          nutrition: Number(petSnapshot.nutrition ?? 0),
+          xp: Number(petSnapshot.total_xp ?? 0),
+        },
+      };
     }
 
-    return {
-      error: null,
-      petState: {
-        status: normalizePetStatusValue(petSnapshot.status),
-        nutrition: Number(petSnapshot.nutrition ?? 0),
-        xp: Number(petSnapshot.total_xp ?? 0),
-      },
-    };
+    if (isMissingRpcError(error.message)) {
+      hasApplyPetActionRpc = false;
+    }
   }
 
   return applyPetActionFallback(spaceId, action, userId ?? null);
