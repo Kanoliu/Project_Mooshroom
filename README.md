@@ -22,6 +22,11 @@ Create a local `.env.local` from `.env.example` and set:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_APP_URL`
+- `NEXT_PUBLIC_VAPID_PUBLIC_KEY`
+- `VAPID_PRIVATE_KEY`
+- `WEB_PUSH_SUBJECT`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
 Before checking art updates in the app, sync editable assets from `art-resources/` into `public/art/`:
 
@@ -40,6 +45,7 @@ If your PowerShell prompt shows a `\\?\` path and `npm run sync:art` fails, use 
 - The manifest is generated from `src/app/manifest.ts`.
 - The service worker lives at `public/sw.js` and is only registered in production.
 - The main landing page is in `src/app/page.tsx`.
+- Push subscriptions are managed through `src/app/api/push/*` and stored in `public.web_push_subscriptions`.
 - Supabase auth uses an email magic link. After sign-in, the app loads the first row from `spaces` and inserts the user into `space_members` with role `member` if needed.
 - Editable art sources live in `art-resources/`.
 - Runtime app assets live in `public/art/`.

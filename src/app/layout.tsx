@@ -11,12 +11,19 @@ const vartigo = localFont({
 
 export const metadata: Metadata = {
   title: "Project Mooshroom",
-  description: "A Next.js PWA starter for Project Mooshroom.",
+  description: "Project Mooshroom is a cozy pet companion you can install on your Home Screen.",
   manifest: "/manifest.webmanifest",
   applicationName: "Project Mooshroom",
+  icons: {
+    icon: [
+      { url: "/icon.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon.webp", sizes: "512x512", type: "image/webp" },
+    ],
+    apple: [{ url: "/icon.png", sizes: "180x180", type: "image/png" }],
+  },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "default",
+    statusBarStyle: "black-translucent",
     title: "Mooshroom",
   },
 };
