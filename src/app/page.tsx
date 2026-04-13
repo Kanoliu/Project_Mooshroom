@@ -15,6 +15,7 @@ import {
 } from "react";
 import { MonthCalendar } from "@/components/calendar/month-calendar";
 import { NotePanel } from "@/components/note-panel";
+import { PwaSettings } from "@/components/pwa-settings";
 import { supabase } from "@/lib/supabase";
 import styles from "./page.module.css";
 
@@ -1876,6 +1877,10 @@ export default function Home() {
                                     : "No space joined yet"}
                               </p>
                             </div>
+                            <PwaSettings
+                              currentUserId={currentUser.id}
+                              activeSpaceId={activeSpaceId}
+                            />
                           </>
                         ) : (
                           <form className={styles.authForm} onSubmit={handleEmailSignIn}>
