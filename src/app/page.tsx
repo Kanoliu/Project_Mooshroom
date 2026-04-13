@@ -1437,7 +1437,7 @@ export default function Home() {
     setPendingEmail(trimmedEmail);
     setEmailCode("");
     setAuthStatus("idle");
-    setAuthMessage("Check your email, then enter the 6-digit code here.");
+    setAuthMessage("Check your email, then enter the code here. Use the link only if you are signing in from the browser.");
   };
 
   const handleEmailCodeVerify = async (event: FormEvent<HTMLFormElement>) => {
@@ -1450,7 +1450,7 @@ export default function Home() {
     }
 
     const trimmedEmail = pendingEmail.trim() || email.trim();
-    const trimmedCode = emailCode.trim();
+    const trimmedCode = emailCode.replace(/\s+/g, "");
     if (!trimmedEmail || !trimmedCode) {
       setAuthStatus("error");
       setAuthMessage("Enter the email and code from your message.");
@@ -1987,7 +1987,7 @@ export default function Home() {
                             {pendingEmail ? (
                               <form className={styles.authForm} onSubmit={handleEmailCodeVerify}>
                                 <label className={styles.authLabel} htmlFor="email-code-input">
-                                  Enter the 6-digit code from your email.
+                                  Enter the code from your email.
                                 </label>
                                 <input
                                   id="email-code-input"
