@@ -46,7 +46,8 @@ If your PowerShell prompt shows a `\\?\` path and `npm run sync:art` fails, use 
 - The service worker lives at `public/sw.js` and is only registered in production.
 - The main landing page is in `src/app/page.tsx`.
 - Push subscriptions are managed through `src/app/api/push/*` and stored in `public.web_push_subscriptions`.
-- Supabase auth uses an email magic link. After sign-in, the app loads the first row from `spaces` and inserts the user into `space_members` with role `member` if needed.
+- Supabase auth sends an email OTP and magic link. Home Screen PWA users should enter the email code in the installed app because iOS opens email links in Safari with separate auth storage.
+- Add the deployed `/auth/callback` URL to the Supabase Auth redirect allow list alongside `NEXT_PUBLIC_APP_URL`.
 - Editable art sources live in `art-resources/`.
 - Runtime app assets live in `public/art/`.
 

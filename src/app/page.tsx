@@ -119,7 +119,14 @@ type DragState = {
 
 type PetStageId = "stage0" | "stage1" | "stage2" | "stage3" | "pet";
 type PetAnimation = "idle" | "note" | "petreact" | "eat" | "water" | "dig";
-type AuthStatus = "setup-required" | "idle" | "sending-link" | "syncing-space" | "ready" | "error";
+type AuthStatus =
+  | "setup-required"
+  | "idle"
+  | "sending-link"
+  | "verifying-code"
+  | "syncing-space"
+  | "ready"
+  | "error";
 type NotesStatus = "idle" | "loading" | "saving" | "ready" | "error";
 type CalendarEventsStatus = "idle" | "loading" | "saving" | "ready" | "error";
 type InventoryStatus = "idle" | "loading" | "ready" | "error";
@@ -343,6 +350,8 @@ export default function Home() {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(() => getTodayDateValue());
   const [selectedEventType, setSelectedEventType] = useState<EventType>("娱乐");
   const [email, setEmail] = useState("");
+  const [pendingEmail, setPendingEmail] = useState("");
+  const [emailCode, setEmailCode] = useState("");
   const [inviteCode, setInviteCode] = useState("");
   const [currentFrame, setCurrentFrame] = useState(0);
   const [currentWaterEffectFrame, setCurrentWaterEffectFrame] = useState(0);
@@ -478,6 +487,7 @@ export default function Home() {
       return;
     }
 
+    const supabaseClient = supabase;
     let isMounted = true;
 
     const hydrateAuth = async (user: User | null) => {
@@ -500,6 +510,7 @@ export default function Home() {
         setDigRewardItem(null);
         setIsDiggingForReward(false);
         pendingDigSequenceRef.current = null;
+        setEmailCode("");
         setAuthStatus("idle");
         setAuthMessage(null);
         setHasResolvedAuthSession(true);
@@ -524,6 +535,8 @@ export default function Home() {
 
       setActiveSpaceId(result.spaceId);
       setCurrentSpaceName(result.spaceName);
+      setPendingEmail("");
+      setEmailCode("");
       setAuthStatus("ready");
       setAuthMessage(
         result.spaceName ? `Space: ${result.spaceName}.` : "Enter an invite code to join a shared space.",
@@ -532,7 +545,26 @@ export default function Home() {
       void logAppOpenActivity(user.id, result.spaceId);
     };
 
-    void supabase.auth.getUser().then(({ data, error }) => {
+    const initializeAuth = async () => {
+      const authCode = getAuthCodeFromUrl();
+
+      if (authCode) {
+        const { error } = await supabaseClient.auth.exchangeCodeForSession(authCode);
+        clearAuthParamsFromUrl();
+
+        if (error) {
+          if (!isMounted) {
+            return;
+          }
+
+          setAuthStatus("error");
+          setAuthMessage(error.message);
+          setHasResolvedAuthSession(true);
+          return;
+        }
+      }
+
+      const { data, error } = await supabaseClient.auth.getUser();
       if (error) {
         if (!isMounted) {
           return;
@@ -545,11 +577,13 @@ export default function Home() {
       }
 
       void hydrateAuth(data.user);
-    });
+    };
+
+    void initializeAuth();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabaseClient.auth.onAuthStateChange((_event, session) => {
       void hydrateAuth(session?.user ?? null);
     });
 
@@ -1400,8 +1434,46 @@ export default function Home() {
       return;
     }
 
+    setPendingEmail(trimmedEmail);
+    setEmailCode("");
     setAuthStatus("idle");
-    setAuthMessage("Check your email for the magic link, then come back here.");
+    setAuthMessage("Check your email, then enter the 6-digit code here.");
+  };
+
+  const handleEmailCodeVerify = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (!supabase) {
+      setAuthStatus("setup-required");
+      setAuthMessage("Add your Supabase URL and anon key to connect sign-in.");
+      return;
+    }
+
+    const trimmedEmail = pendingEmail.trim() || email.trim();
+    const trimmedCode = emailCode.trim();
+    if (!trimmedEmail || !trimmedCode) {
+      setAuthStatus("error");
+      setAuthMessage("Enter the email and code from your message.");
+      return;
+    }
+
+    setAuthStatus("verifying-code");
+    setAuthMessage(null);
+
+    const { error } = await supabase.auth.verifyOtp({
+      email: trimmedEmail,
+      token: trimmedCode,
+      type: "email",
+    });
+
+    if (error) {
+      setAuthStatus("error");
+      setAuthMessage(error.message);
+      return;
+    }
+
+    setEmailCode("");
+    setAuthStatus("syncing-space");
   };
 
   const handleSignOut = async () => {
@@ -1417,6 +1489,8 @@ export default function Home() {
     }
 
     clearPreferredSpaceId();
+    setPendingEmail("");
+    setEmailCode("");
     setActiveSpaceId(null);
     setCurrentSpaceName(null);
     setCurrentUser(null);
@@ -1883,29 +1957,63 @@ export default function Home() {
                             />
                           </>
                         ) : (
-                          <form className={styles.authForm} onSubmit={handleEmailSignIn}>
-                            <label className={styles.authLabel} htmlFor="email-input">
-                              Enter your email to sign in with a magic link.
-                            </label>
-                            <input
-                              id="email-input"
-                              type="email"
-                              value={email}
-                              onChange={(event) => setEmail(event.target.value)}
-                              className={styles.authInput}
-                              placeholder="you@example.com"
-                              autoComplete="email"
-                            />
-                            <button
-                              type="submit"
-                              className={styles.authButton}
-                              disabled={
-                                authStatus === "sending-link" || authStatus === "syncing-space"
-                              }
-                            >
-                              {authStatus === "sending-link" ? "Sending..." : "Email me a link"}
-                            </button>
-                          </form>
+                          <>
+                            <form className={styles.authForm} onSubmit={handleEmailSignIn}>
+                              <label className={styles.authLabel} htmlFor="email-input">
+                                Enter your email to sign in.
+                              </label>
+                              <input
+                                id="email-input"
+                                type="email"
+                                value={email}
+                                onChange={(event) => setEmail(event.target.value)}
+                                className={styles.authInput}
+                                placeholder="you@example.com"
+                                autoComplete="email"
+                              />
+                              <button
+                                type="submit"
+                                className={styles.authButton}
+                                disabled={
+                                  authStatus === "sending-link" ||
+                                  authStatus === "verifying-code" ||
+                                  authStatus === "syncing-space"
+                                }
+                              >
+                                {authStatus === "sending-link" ? "Sending..." : "Email me a code"}
+                              </button>
+                            </form>
+
+                            {pendingEmail ? (
+                              <form className={styles.authForm} onSubmit={handleEmailCodeVerify}>
+                                <label className={styles.authLabel} htmlFor="email-code-input">
+                                  Enter the 6-digit code from your email.
+                                </label>
+                                <input
+                                  id="email-code-input"
+                                  type="text"
+                                  inputMode="numeric"
+                                  pattern="[0-9]*"
+                                  value={emailCode}
+                                  onChange={(event) => setEmailCode(event.target.value)}
+                                  className={styles.authInput}
+                                  placeholder="123456"
+                                  autoComplete="one-time-code"
+                                />
+                                <button
+                                  type="submit"
+                                  className={styles.authButton}
+                                  disabled={
+                                    authStatus === "sending-link" ||
+                                    authStatus === "verifying-code" ||
+                                    authStatus === "syncing-space"
+                                  }
+                                >
+                                  {authStatus === "verifying-code" ? "Checking..." : "Sign in with code"}
+                                </button>
+                              </form>
+                            ) : null}
+                          </>
                         )}
 
                         {authMessage && (!currentUser || authStatus === "error") ? (
@@ -3408,17 +3516,39 @@ function rectanglesOverlap(a: DOMRect, b: DOMRect) {
 }
 
 function getAuthRedirectUrl() {
+  const callbackPath = "/auth/callback";
+
   if (configuredAppUrl) {
-    return configuredAppUrl;
+    return new URL(callbackPath, configuredAppUrl).toString();
   }
 
   if (typeof window !== "undefined") {
     const { hostname, origin } = window.location;
 
     if (hostname === "localhost" || hostname === "127.0.0.1") {
-      return origin;
+      return new URL(callbackPath, origin).toString();
     }
   }
 
   return null;
+}
+
+function getAuthCodeFromUrl() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const searchParams = new URLSearchParams(window.location.search);
+  return searchParams.get("code");
+}
+
+function clearAuthParamsFromUrl() {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  url.searchParams.delete("code");
+  url.searchParams.delete("state");
+  window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
 }
