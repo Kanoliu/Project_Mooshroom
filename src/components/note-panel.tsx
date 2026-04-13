@@ -33,6 +33,7 @@ type NotePanelProps = {
   noteInputRef: RefObject<HTMLTextAreaElement | null>;
   onClose: () => void;
   onSelectNote: (noteId: string) => void;
+  onEditNote: (noteId: string) => void;
   onStartEditing: () => void;
   onSubmit: FormEventHandler<HTMLFormElement>;
   onDraftChange: (value: string) => void;
@@ -54,6 +55,7 @@ export function NotePanel({
   noteInputRef,
   onClose,
   onSelectNote,
+  onEditNote,
   onStartEditing,
   onSubmit,
   onDraftChange,
@@ -117,6 +119,7 @@ export function NotePanel({
                 }`}
                 style={getCardStyle(cardLayouts[index] ?? cardLayouts[0])}
                 onClick={() => onSelectNote(note.id)}
+                onDoubleClick={() => onEditNote(note.id)}
                 aria-pressed={selectedPreviewNote?.id === note.id}
                 aria-label={`Open note from ${formatShortDate(note.createdAt)}`}
               >

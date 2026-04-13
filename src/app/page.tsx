@@ -15,7 +15,6 @@ import {
 } from "react";
 import { MonthCalendar } from "@/components/calendar/month-calendar";
 import { NotePanel } from "@/components/note-panel";
-import { PwaSettings } from "@/components/pwa-settings";
 import { supabase } from "@/lib/supabase";
 import styles from "./page.module.css";
 
@@ -89,6 +88,7 @@ const EVENT_TYPE_STAMP_ART: Record<EventType, string> = {
 type NotesAction =
   | { type: "hydrate"; notes: NoteItem[] }
   | { type: "add"; note: NoteItem }
+  | { type: "update"; note: NoteItem }
   | { type: "reset" };
 
 type CardLayout = {
@@ -300,6 +300,11 @@ function notesReducer(state: NotesState, action: NotesAction): NotesState {
         ...state,
         notes: [action.note, ...state.notes],
       };
+    case "update":
+      return {
+        ...state,
+        notes: state.notes.map((note) => (note.id === action.note.id ? action.note : note)),
+      };
     case "reset":
       return {
         hasHydrated: false,
@@ -320,6 +325,7 @@ export default function Home() {
   const [isBackpackOpen, setIsBackpackOpen] = useState(false);
   const [isAuthMenuOpen, setIsAuthMenuOpen] = useState(false);
   const [isNoteEditing, setIsNoteEditing] = useState(false);
+  const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [isCalendarEditing, setIsCalendarEditing] = useState(false);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [calendarViewDate, setCalendarViewDate] = useState(() => {
@@ -1266,12 +1272,14 @@ export default function Home() {
     if (!activeSpaceId) {
       setDraft("");
       setIsNoteEditing(false);
+      setEditingNoteId(null);
       return;
     }
 
     const savedDraftSession = readNoteDraftSession(activeSpaceId);
     setDraft(savedDraftSession?.draft ?? "");
     setIsNoteEditing(savedDraftSession?.isEditing ?? false);
+    setEditingNoteId(savedDraftSession?.editingNoteId ?? null);
   }, [activeSpaceId]);
 
   useEffect(() => {
@@ -1287,8 +1295,9 @@ export default function Home() {
     writeNoteDraftSession(activeSpaceId, {
       draft,
       isEditing: isNoteEditing,
+      editingNoteId,
     });
-  }, [activeSpaceId, draft, isNoteEditing]);
+  }, [activeSpaceId, draft, editingNoteId, isNoteEditing]);
 
   const previewNotes = useMemo(() => notesState.notes.slice(0, 4), [notesState.notes]);
   const loadingFrameIcon = useMemo(
@@ -1315,7 +1324,13 @@ export default function Home() {
     if (!previewNotes.some((note) => note.id === selectedNoteId)) {
       setSelectedNoteId(previewNotes[0].id);
     }
-  }, [previewNotes, selectedNoteId]);
+
+    if (editingNoteId && !notesState.notes.some((note) => note.id === editingNoteId)) {
+      setEditingNoteId(null);
+      setIsNoteEditing(false);
+      setDraft("");
+    }
+  }, [editingNoteId, notesState.notes, previewNotes, selectedNoteId]);
 
   useEffect(() => {
     setCalendarEventDraft(selectedDateEventDraft);
@@ -1468,6 +1483,44 @@ export default function Home() {
 
     setNotesStatus("saving");
 
+    if (editingNoteId) {
+      const previousNote = notesState.notes.find((note) => note.id === editingNoteId);
+      if (!previousNote) {
+        setNotesStatus("error");
+        return;
+      }
+
+      const updatedNote = {
+        ...previousNote,
+        text: trimmed,
+      };
+      dispatch({ type: "update", note: updatedNote });
+      setSelectedNoteId(updatedNote.id);
+
+      const { error } = await supabase
+        .from("notes")
+        .update({
+          content: trimmed,
+        })
+        .eq("id", editingNoteId)
+        .eq("space_id", activeSpaceId);
+
+      if (error) {
+        dispatch({ type: "update", note: previousNote });
+        const result = await fetchNotesForSpace(activeSpaceId);
+        dispatch({ type: "hydrate", notes: result.notes ?? [] });
+        setNotesStatus("error");
+        return;
+      }
+
+      setNotesStatus("ready");
+      setDraft("");
+      setEditingNoteId(null);
+      setIsNoteEditing(false);
+      openNotesPanel();
+      return;
+    }
+
     const optimisticNote = {
       id: crypto.randomUUID(),
       text: trimmed,
@@ -1499,6 +1552,7 @@ export default function Home() {
     setNotesStatus("ready");
     pendingNoteReactionRef.current = true;
     setDraft("");
+    setEditingNoteId(null);
     setIsNoteEditing(false);
     openNotesPanel();
   };
@@ -1848,11 +1902,6 @@ export default function Home() {
                             </button>
                           </form>
                         )}
-
-                        <PwaSettings
-                          currentUserId={currentUser?.id ?? null}
-                          activeSpaceId={activeSpaceId}
-                        />
 
                         {authMessage && (!currentUser || authStatus === "error") ? (
                           <p
@@ -2335,10 +2384,30 @@ export default function Home() {
               onClose={closeNotesPanel}
               onSelectNote={(noteId) => {
                 setSelectedNoteId(noteId);
+                setEditingNoteId(null);
                 setIsNoteEditing(false);
                 setDraft("");
               }}
+              onEditNote={(noteId) => {
+                const noteToEdit = notesState.notes.find((note) => note.id === noteId);
+                if (!noteToEdit) {
+                  return;
+                }
+
+                setSelectedNoteId(noteId);
+                setEditingNoteId(noteId);
+                setDraft(noteToEdit.text);
+                setIsNoteEditing(true);
+                window.setTimeout(() => {
+                  noteInputRef.current?.focus({ preventScroll: true });
+                  noteInputRef.current?.setSelectionRange(
+                    noteToEdit.text.length,
+                    noteToEdit.text.length,
+                  );
+                }, 0);
+              }}
               onStartEditing={() => {
+                setEditingNoteId(null);
                 setIsNoteEditing(true);
                 window.setTimeout(() => {
                   noteInputRef.current?.focus({ preventScroll: true });
@@ -3196,17 +3265,25 @@ function readNoteDraftSession(spaceId: string) {
   }
 
   try {
-    const parsedValue = JSON.parse(rawValue) as { draft?: string; isEditing?: boolean };
+    const parsedValue = JSON.parse(rawValue) as {
+      draft?: string;
+      isEditing?: boolean;
+      editingNoteId?: string | null;
+    };
     return {
       draft: typeof parsedValue.draft === "string" ? parsedValue.draft : "",
       isEditing: parsedValue.isEditing === true,
+      editingNoteId: typeof parsedValue.editingNoteId === "string" ? parsedValue.editingNoteId : null,
     };
   } catch {
     return null;
   }
 }
 
-function writeNoteDraftSession(spaceId: string, value: { draft: string; isEditing: boolean }) {
+function writeNoteDraftSession(
+  spaceId: string,
+  value: { draft: string; isEditing: boolean; editingNoteId: string | null },
+) {
   if (typeof window === "undefined") {
     return;
   }
