@@ -65,6 +65,9 @@ export function NotePanel({
 }: NotePanelProps) {
   const selectedPreviewNote =
     previewNotes.find((note) => note.id === selectedNoteId) ?? previewNotes[0] ?? null;
+  const viewerTextClassName = selectedPreviewNote
+    ? `${styles.noteViewerText} ${getViewerTextSizeClass(selectedPreviewNote.text)}`
+    : styles.noteViewerText;
 
   return (
     <section
@@ -160,7 +163,7 @@ export function NotePanel({
             <div className={styles.noteViewer}>
               {selectedPreviewNote ? (
                 <>
-                  <p className={styles.noteViewerText}>{selectedPreviewNote.text}</p>
+                  <p className={viewerTextClassName}>{selectedPreviewNote.text}</p>
                 </>
               ) : (
                 <p className={styles.noteViewerEmpty}>Click a note to view it here.</p>
@@ -185,4 +188,16 @@ function getCardStyle(layout: CardLayout): CSSProperties {
     "--card-padding": layout.padding,
     "--card-line-clamp": String(layout.lineClamp),
   } as CSSProperties;
+}
+
+function getViewerTextSizeClass(text: string) {
+  if (text.length > 520) {
+    return styles.noteViewerTextTiny;
+  }
+
+  if (text.length > 280) {
+    return styles.noteViewerTextSmall;
+  }
+
+  return "";
 }

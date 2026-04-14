@@ -1313,8 +1313,8 @@ export default function Home() {
 
     const savedDraftSession = readNoteDraftSession(activeSpaceId);
     setDraft(savedDraftSession?.draft ?? "");
-    setIsNoteEditing(savedDraftSession?.isEditing ?? false);
-    setEditingNoteId(savedDraftSession?.editingNoteId ?? null);
+    setIsNoteEditing(false);
+    setEditingNoteId(null);
   }, [activeSpaceId]);
 
   useEffect(() => {
@@ -1329,10 +1329,10 @@ export default function Home() {
 
     writeNoteDraftSession(activeSpaceId, {
       draft,
-      isEditing: isNoteEditing,
-      editingNoteId,
+      isEditing: false,
+      editingNoteId: null,
     });
-  }, [activeSpaceId, draft, editingNoteId, isNoteEditing]);
+  }, [activeSpaceId, draft, isNoteEditing]);
 
   const previewNotes = useMemo(() => notesState.notes.slice(0, 4), [notesState.notes]);
   const loadingFrameIcon = useMemo(
