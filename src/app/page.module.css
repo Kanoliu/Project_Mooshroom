@@ -1161,28 +1161,23 @@
 @media (max-width: 640px) {
   .page {
     position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    left: 0;
+    inset: 0;
     isolation: isolate;
     width: 100%;
-    height: auto;
+    height: 100%;
     min-height: 0;
     padding: 0;
     align-items: stretch;
-    background: #f4ecde;
+    overflow: hidden;
+    background: #9aa57f;
   }
 
   .page::before {
     content: "";
     position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    inset: 0;
     z-index: 0;
-    height: max(96px, calc(64px + var(--app-safe-bottom)));
-    background: #9aa57f;
+    background: center / cover no-repeat url("/art/backgrounds/background.png");
     pointer-events: none;
   }
 
