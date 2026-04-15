@@ -1160,10 +1160,14 @@
 
 @media (max-width: 640px) {
   .page {
+    position: fixed;
+    inset: 0;
+    width: 100%;
     height: var(--app-height, 100dvh);
     min-height: var(--app-height, 100dvh);
     padding: 0;
     align-items: stretch;
+    background: #f4ecde;
   }
 
   .phoneShell {

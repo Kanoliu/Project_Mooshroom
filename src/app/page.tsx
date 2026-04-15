@@ -443,13 +443,15 @@ export default function Home() {
     const viewport = window.visualViewport;
 
     const updateViewportMetrics = () => {
-      const viewportHeight = Math.round(viewport?.height ?? window.innerHeight);
+      const layoutViewportHeight = window.innerHeight;
+      const visualViewportHeight = viewport?.height ?? layoutViewportHeight;
       const keyboardInset = Math.max(
         0,
-        Math.round(window.innerHeight - (viewport?.height ?? window.innerHeight) - (viewport?.offsetTop ?? 0)),
+        Math.round(layoutViewportHeight - visualViewportHeight - (viewport?.offsetTop ?? 0)),
       );
+      const appHeight = keyboardInset > 0 ? Math.round(visualViewportHeight) : layoutViewportHeight;
 
-      root.style.setProperty("--app-height", `${viewportHeight}px`);
+      root.style.setProperty("--app-height", `${appHeight}px`);
       root.style.setProperty("--keyboard-inset", `${keyboardInset}px`);
 
       if (
