@@ -65,6 +65,7 @@ type UserActivityType =
   | "feed"
   | "water"
   | "dig";
+type SpaceNotificationType = "note" | "calendar";
 
 type NotesState = {
   hasHydrated: boolean;
@@ -1624,6 +1625,7 @@ export default function Home() {
     }
 
     void logUserActivity(currentUser.id, "note_created", activeSpaceId);
+    void notifySpaceEvent("note", activeSpaceId);
     setNotesStatus("ready");
     pendingNoteReactionRef.current = true;
     setDraft("");
@@ -1703,6 +1705,7 @@ export default function Home() {
 
     if (parsedEvents.length > 0) {
       void logUserActivity(currentUser.id, "calendar_updated", activeSpaceId);
+      void notifySpaceEvent("calendar", activeSpaceId);
     }
     setCalendarEventsStatus("ready");
     setSelectedEventType("娱乐");
@@ -2538,6 +2541,47 @@ export default function Home() {
       </section>
     </main>
   );
+}
+
+async function notifySpaceEvent(eventType: SpaceNotificationType, spaceId: string) {
+  if (!supabase) {
+    return;
+  }
+
+  try {
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const accessToken = session?.access_token;
+    if (!accessToken) {
+      return;
+    }
+
+    const response = await fetch("/api/push/space-event", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        body:
+          eventType === "calendar"
+            ? "Someone added a calendar update in your space."
+            : "Someone added a note in your space.",
+        eventType,
+        spaceId,
+        title: "Project Mooshroom",
+        url: "/",
+      }),
+    });
+
+    if (!response.ok) {
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null;
+      console.error("Could not send space notification.", payload?.error ?? response.statusText);
+    }
+  } catch (error) {
+    console.error("Could not send space notification.", error);
+  }
 }
 
 async function logUserActivity(userId: string, activityType: UserActivityType, spaceId?: string | null) {
