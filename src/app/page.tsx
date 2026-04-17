@@ -2571,7 +2571,7 @@ async function notifySpaceEvent(eventType: SpaceNotificationType, spaceId: strin
       body: JSON.stringify({
         body:
           eventType === "calendar"
-            ? "Calendar gobbled up a new plan. Tiny productivity mushroom approves."
+            ? "New plan dropped. The mushroom says you may want to peek."
             : "New note dropped. The mushroom says it is probably important.",
         eventType,
         spaceId,
