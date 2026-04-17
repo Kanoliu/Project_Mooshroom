@@ -28,8 +28,8 @@ function getSpaceEventMessage(body: SpaceEventRequestBody) {
     body:
       body.body?.trim() ||
       (isCalendarEvent
-        ? "Someone added a calendar update in your space."
-        : "Someone added a note in your space."),
+        ? "Calendar gobbled up a new plan. Tiny productivity mushroom approves."
+        : "New note dropped. The mushroom says it is probably important."),
     title: body.title?.trim() || "Project Mooshroom",
     url: body.url?.trim() || "/",
   };

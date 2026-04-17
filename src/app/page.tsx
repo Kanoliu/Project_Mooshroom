@@ -537,6 +537,9 @@ export default function Home() {
       }
 
       setActiveSpaceId(result.spaceId);
+      if (result.spaceId) {
+        writePreferredSpaceId(user.id, result.spaceId);
+      }
       setCurrentSpaceName(result.spaceName);
       setPendingEmail("");
       setEmailCode("");
@@ -2568,12 +2571,12 @@ async function notifySpaceEvent(eventType: SpaceNotificationType, spaceId: strin
       body: JSON.stringify({
         body:
           eventType === "calendar"
-            ? "Someone added a calendar update in your space."
-            : "Someone added a note in your space.",
+            ? "Calendar gobbled up a new plan. Tiny productivity mushroom approves."
+            : "New note dropped. The mushroom says it is probably important.",
         eventType,
         spaceId,
         title: "Project Mooshroom",
-        url: "/",
+        url: `/?space=${encodeURIComponent(spaceId)}`,
       }),
     });
 
@@ -2643,6 +2646,14 @@ async function logAppOpenActivity(userId: string, spaceId?: string | null) {
 }
 
 async function ensureInitialSpaceMembership(userId: string): Promise<SpaceMembershipResult> {
+  const requestedSpaceId = readRequestedSpaceId();
+  if (requestedSpaceId) {
+    const requestedResult = await ensureSpaceMembershipById(userId, requestedSpaceId);
+    if (!requestedResult.error && requestedResult.spaceId) {
+      return requestedResult;
+    }
+  }
+
   const preferredSpaceId = readPreferredSpaceId(userId);
   if (preferredSpaceId) {
     const preferredResult = await ensureSpaceMembershipById(userId, preferredSpaceId);
@@ -3464,6 +3475,15 @@ function readPreferredSpaceId(userId?: string) {
   }
 
   return window.localStorage.getItem(getPreferredSpaceStorageKey(userId));
+}
+
+function readRequestedSpaceId() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const searchParams = new URLSearchParams(window.location.search);
+  return searchParams.get("space");
 }
 
 function writePreferredSpaceId(userId: string, spaceId: string) {
