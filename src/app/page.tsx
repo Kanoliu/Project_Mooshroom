@@ -5,6 +5,7 @@ import type { User } from "@supabase/supabase-js";
 import {
   type CSSProperties,
   type FormEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
   useEffect,
   useLayoutEffect,
@@ -37,7 +38,7 @@ type SpaceInventoryItem = {
 };
 
 type PetStatusValue = "0" | "1" | "2" | "3" | "pet";
-type EventType = "娱乐" | "办事" | "吃饭" | "随记";
+type EventType = "Entertainment" | "Errand" | "Meal" | "Note";
 
 type PetState = {
   status: PetStatusValue;
@@ -81,16 +82,17 @@ type CalendarEventItem = {
 };
 
 const EVENT_TYPE_STAMP_ART: Record<EventType, string> = {
-  娱乐: "/art/ui/calendar-stamps/entertainment.webp",
-  办事: "/art/ui/calendar-stamps/event.webp",
-  吃饭: "/art/ui/calendar-stamps/dinner.webp",
-  随记: "/art/ui/calendar-stamps/record.webp",
+  Entertainment: "/art/ui/calendar-stamps/entertainment.webp",
+  Errand: "/art/ui/calendar-stamps/event.webp",
+  Meal: "/art/ui/calendar-stamps/dinner.webp",
+  Note: "/art/ui/calendar-stamps/record.webp",
 };
 
 type NotesAction =
   | { type: "hydrate"; notes: NoteItem[] }
   | { type: "add"; note: NoteItem }
   | { type: "update"; note: NoteItem }
+  | { type: "replace"; optimisticId: string; note: NoteItem }
   | { type: "reset" };
 
 type CardLayout = {
@@ -132,7 +134,9 @@ type NotesStatus = "idle" | "loading" | "saving" | "ready" | "error";
 type CalendarEventsStatus = "idle" | "loading" | "saving" | "ready" | "error";
 type InventoryStatus = "idle" | "loading" | "ready" | "error";
 
-const EVENT_TYPES: EventType[] = ["娱乐", "办事", "吃饭", "随记"];
+const EVENT_TYPES: EventType[] = ["Entertainment", "Errand", "Meal", "Note"];
+const LOADING_FRAME_ICON = "/art/ui/Kettle.webp";
+const CARE_HINT_STORAGE_KEY = "project-mooshroom:care-hint-complete";
 
 const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
 const APP_OPEN_ACTIVITY_PREFIX = "user-activity:app-open";
@@ -271,16 +275,6 @@ const topUiSlots: UiDockSlot[] = [
   { id: "setting", label: "Settings", icon: "/art/ui/Setting.webp", action: "settings" },
 ];
 
-const LOADING_FRAME_ICONS = [
-  "/art/ui/Food.webp",
-  "/art/ui/Kettle.webp",
-  "/art/ui/Backpack.webp",
-  "/art/ui/shovel.webp",
-  "/art/ui/Note.webp",
-  "/art/ui/Calender.webp",
-  "/art/ui/Setting.webp",
-] as const;
-
 const BASE_SCENE_ASSET_URLS = Array.from(
   new Set([
     "/art/backgrounds/background.png",
@@ -314,6 +308,18 @@ function notesReducer(state: NotesState, action: NotesAction): NotesState {
         ...state,
         notes: state.notes.map((note) => (note.id === action.note.id ? action.note : note)),
       };
+    case "replace": {
+      const hasOptimisticNote = state.notes.some((note) => note.id === action.optimisticId);
+      const hasSavedNote = state.notes.some((note) => note.id === action.note.id);
+      return {
+        ...state,
+        notes: hasOptimisticNote
+          ? state.notes.map((note) => (note.id === action.optimisticId ? action.note : note))
+          : hasSavedNote
+            ? state.notes
+            : [action.note, ...state.notes],
+      };
+    }
     case "reset":
       return {
         hasHydrated: false,
@@ -336,6 +342,7 @@ export default function Home() {
   const [isNoteEditing, setIsNoteEditing] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [isCalendarEditing, setIsCalendarEditing] = useState(false);
+  const [editingCalendarEventId, setEditingCalendarEventId] = useState<string | null>(null);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [calendarViewDate, setCalendarViewDate] = useState(() => {
     const today = new Date();
@@ -347,9 +354,11 @@ export default function Home() {
   const [foodOffset, setFoodOffset] = useState({ x: 0, y: 0 });
   const [kettleOffset, setKettleOffset] = useState({ x: 0, y: 0 });
   const [draft, setDraft] = useState("");
-  const [calendarEventDraft, setCalendarEventDraft] = useState("");
+  const [calendarEventDrafts, setCalendarEventDrafts] = useState<Record<string, string>>({});
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(() => getTodayDateValue());
-  const [selectedEventType, setSelectedEventType] = useState<EventType>("娱乐");
+  const [selectedEventType, setSelectedEventType] = useState<EventType>("Entertainment");
+  const [feedbackMessage, setFeedbackMessage] = useState("");
+  const [showCareHint, setShowCareHint] = useState(false);
   const [email, setEmail] = useState("");
   const [pendingEmail, setPendingEmail] = useState("");
   const [emailCode, setEmailCode] = useState("");
@@ -384,13 +393,40 @@ export default function Home() {
     hasHydrated: false,
     notes: [],
   });
+  const calendarEventDraft = calendarEventDrafts[selectedCalendarDate] ?? "";
+  const setCalendarEventDraft = (value: string) => {
+    setCalendarEventDrafts((current) => ({
+      ...current,
+      [selectedCalendarDate]: value,
+    }));
+  };
 
   const noteButtonRef = useRef<HTMLButtonElement>(null);
+  const calendarButtonRef = useRef<HTMLButtonElement>(null);
+  const backpackButtonRef = useRef<HTMLButtonElement>(null);
+  const calendarPanelRef = useRef<HTMLElement>(null);
+  const backpackPanelRef = useRef<HTMLElement>(null);
   const noteInputRef = useRef<HTMLTextAreaElement>(null);
   const calendarEventInputRef = useRef<HTMLTextAreaElement>(null);
   const authMenuRef = useRef<HTMLDivElement>(null);
   const foodButtonRef = useRef<HTMLButtonElement>(null);
   const kettleButtonRef = useRef<HTMLButtonElement>(null);
+
+  const announceFeedback = (message: string) => {
+    setFeedbackMessage(message);
+    if (feedbackTimeoutRef.current !== null) {
+      window.clearTimeout(feedbackTimeoutRef.current);
+    }
+    feedbackTimeoutRef.current = window.setTimeout(() => {
+      setFeedbackMessage("");
+      feedbackTimeoutRef.current = null;
+    }, 2600);
+  };
+
+  const completeCareHint = () => {
+    setShowCareHint(false);
+    window.localStorage.setItem(CARE_HINT_STORAGE_KEY, "true");
+  };
 
   const openNotesPanel = () => {
     setIsNoteOpen(true);
@@ -401,6 +437,9 @@ export default function Home() {
 
   const closeNotesPanel = () => {
     setIsNoteOpen(false);
+    setIsNoteEditing(false);
+    setEditingNoteId(null);
+    window.setTimeout(() => noteButtonRef.current?.focus({ preventScroll: true }), 0);
   };
 
   const openCalendarPanel = () => {
@@ -411,6 +450,14 @@ export default function Home() {
     setIsNoteOpen(false);
     setIsBackpackOpen(false);
     setIsAuthMenuOpen(false);
+    window.setTimeout(() => calendarPanelRef.current?.focus({ preventScroll: true }), 0);
+  };
+
+  const closeCalendarPanel = () => {
+    setIsCalendarOpen(false);
+    setIsCalendarEditing(false);
+    setEditingCalendarEventId(null);
+    window.setTimeout(() => calendarButtonRef.current?.focus({ preventScroll: true }), 0);
   };
 
   const openBackpackPanel = () => {
@@ -418,6 +465,12 @@ export default function Home() {
     setIsCalendarOpen(false);
     setIsNoteOpen(false);
     setIsAuthMenuOpen(false);
+    window.setTimeout(() => backpackPanelRef.current?.focus({ preventScroll: true }), 0);
+  };
+
+  const closeBackpackPanel = () => {
+    setIsBackpackOpen(false);
+    window.setTimeout(() => backpackButtonRef.current?.focus({ preventScroll: true }), 0);
   };
   const petButtonRef = useRef<HTMLButtonElement>(null);
   const animationFrameRef = useRef<number | null>(null);
@@ -427,6 +480,7 @@ export default function Home() {
   const foodDragRef = useRef<DragState | null>(null);
   const kettleDragRef = useRef<DragState | null>(null);
   const digRewardTimeoutRef = useRef<number | null>(null);
+  const feedbackTimeoutRef = useRef<number | null>(null);
   const pendingDigSequenceRef = useRef<Promise<DigSequenceResult> | null>(null);
   const finishDigSequenceRef = useRef<() => Promise<void>>(async () => {});
 
@@ -437,6 +491,19 @@ export default function Home() {
       document.body.scrollTop = 0;
     }, 60);
   };
+
+  useEffect(() => {
+    const hintTimeout = window.setTimeout(() => {
+      setShowCareHint(window.localStorage.getItem(CARE_HINT_STORAGE_KEY) !== "true");
+    }, 0);
+
+    return () => {
+      window.clearTimeout(hintTimeout);
+      if (feedbackTimeoutRef.current !== null) {
+        window.clearTimeout(feedbackTimeoutRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -1103,11 +1170,13 @@ export default function Home() {
 
   const handlePetTap = () => {
     if (selectedPetStage !== "pet" && selectedPetStage !== "stage3") {
+      announceFeedback("Mooshroom is still growing. Try watering it with the kettle.");
       return;
     }
 
     setCurrentFrame(0);
     setPetAnimation("petreact");
+    announceFeedback("Mooshroom looks happy.");
   };
 
   const triggerPetEat = () => {
@@ -1168,7 +1237,9 @@ export default function Home() {
     showDigReward(rewardedItem);
     void logUserActivity(digResult.userId, "dig", digResult.spaceId);
   };
-  finishDigSequenceRef.current = finishDigSequence;
+  useEffect(() => {
+    finishDigSequenceRef.current = finishDigSequence;
+  });
 
   const handleDigForTreasure = () => {
     if (!activeSpaceId || !currentUser || selectedPetStage !== "pet" || petState.xp < 10 || isDiggingForReward) {
@@ -1255,6 +1326,9 @@ export default function Home() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsNoteOpen(false);
+        setIsNoteEditing(false);
+        setEditingNoteId(null);
+        window.setTimeout(() => noteButtonRef.current?.focus({ preventScroll: true }), 0);
       }
     };
 
@@ -1275,6 +1349,9 @@ export default function Home() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsCalendarOpen(false);
+        setIsCalendarEditing(false);
+        setEditingCalendarEventId(null);
+        window.setTimeout(() => calendarButtonRef.current?.focus({ preventScroll: true }), 0);
       }
     };
 
@@ -1290,24 +1367,13 @@ export default function Home() {
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         setIsBackpackOpen(false);
+        window.setTimeout(() => backpackButtonRef.current?.focus({ preventScroll: true }), 0);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isBackpackOpen]);
-
-  useEffect(() => {
-    if (!isCalendarOpen) {
-      return;
-    }
-
-    const focusTimeout = window.setTimeout(() => {
-      calendarEventInputRef.current?.focus({ preventScroll: true });
-    }, 120);
-
-    return () => window.clearTimeout(focusTimeout);
-  }, [isCalendarOpen, selectedCalendarDate]);
 
   useEffect(() => {
     if (!activeSpaceId) {
@@ -1340,30 +1406,20 @@ export default function Home() {
     });
   }, [activeSpaceId, draft, isNoteEditing]);
 
-  const previewNotes = useMemo(() => notesState.notes.slice(0, 4), [notesState.notes]);
-  const loadingFrameIcon = useMemo(
-    () => LOADING_FRAME_ICONS[Math.floor(Math.random() * LOADING_FRAME_ICONS.length)],
-    [],
-  );
   const selectedDateEvents = useMemo(
     () => calendarEvents.filter((item) => item.date === selectedCalendarDate),
     [calendarEvents, selectedCalendarDate],
   );
-  const selectedDateEventDraft = useMemo(
-    () => formatCalendarEditorText(selectedDateEvents),
-    [selectedDateEvents],
-  );
-
   useEffect(() => {
-    if (previewNotes.length === 0) {
+    if (notesState.notes.length === 0) {
       if (selectedNoteId !== null) {
         setSelectedNoteId(null);
       }
       return;
     }
 
-    if (!previewNotes.some((note) => note.id === selectedNoteId)) {
-      setSelectedNoteId(previewNotes[0].id);
+    if (!notesState.notes.some((note) => note.id === selectedNoteId)) {
+      setSelectedNoteId(notesState.notes[0].id);
     }
 
     if (editingNoteId && !notesState.notes.some((note) => note.id === editingNoteId)) {
@@ -1371,15 +1427,7 @@ export default function Home() {
       setIsNoteEditing(false);
       setDraft("");
     }
-  }, [editingNoteId, notesState.notes, previewNotes, selectedNoteId]);
-
-  useEffect(() => {
-    setCalendarEventDraft(selectedDateEventDraft);
-
-    if (selectedDateEvents[0]) {
-      setSelectedEventType(selectedDateEvents[0].eventType);
-    }
-  }, [selectedDateEventDraft, selectedDateEvents]);
+  }, [editingNoteId, notesState.notes, selectedNoteId]);
 
   const calendarEventStampByDate = useMemo(() => {
     return calendarEvents.reduce<Record<string, string>>((accumulator, item) => {
@@ -1389,8 +1437,6 @@ export default function Home() {
       return accumulator;
     }, {});
   }, [calendarEvents]);
-  const normalizedCalendarEventDraft = normalizeCalendarEditorText(calendarEventDraft);
-  const normalizedSelectedDateEventDraft = normalizeCalendarEditorText(selectedDateEventDraft);
   const isSaveDisabled =
     draft.trim().length === 0 ||
     !currentUser ||
@@ -1403,7 +1449,7 @@ export default function Home() {
     calendarEventsStatus === "saving" ||
     calendarEventsStatus === "loading" ||
     !selectedCalendarDate ||
-    normalizedCalendarEventDraft === normalizedSelectedDateEventDraft;
+    calendarEventDraft.trim().length === 0;
 
   const handleEmailSignIn = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1568,6 +1614,7 @@ export default function Home() {
       const previousNote = notesState.notes.find((note) => note.id === editingNoteId);
       if (!previousNote) {
         setNotesStatus("error");
+        announceFeedback("That note is no longer available.");
         return;
       }
 
@@ -1591,6 +1638,7 @@ export default function Home() {
         const result = await fetchNotesForSpace(activeSpaceId);
         dispatch({ type: "hydrate", notes: result.notes ?? [] });
         setNotesStatus("error");
+        announceFeedback("The note could not be updated. Your original is still safe.");
         return;
       }
 
@@ -1599,6 +1647,7 @@ export default function Home() {
       setEditingNoteId(null);
       setIsNoteEditing(false);
       openNotesPanel();
+      announceFeedback("Note updated.");
       return;
     }
 
@@ -1610,18 +1659,31 @@ export default function Home() {
     dispatch({ type: "add", note: optimisticNote });
     setSelectedNoteId(optimisticNote.id);
 
-    const { error } = await supabase.from("notes").insert({
-      space_id: activeSpaceId,
-      author_user_id: currentUser.id,
-      content: trimmed,
-    });
+    const { data: savedNoteData, error } = await supabase
+      .from("notes")
+      .insert({
+        space_id: activeSpaceId,
+        author_user_id: currentUser.id,
+        content: trimmed,
+      })
+      .select("id, created_at")
+      .single();
 
-    if (error) {
+    if (error || !savedNoteData) {
       const result = await fetchNotesForSpace(activeSpaceId);
       dispatch({ type: "hydrate", notes: result.notes ?? [] });
       setNotesStatus("error");
+      announceFeedback("The note could not be saved. Your draft is still here.");
       return;
     }
+
+    const savedNote = {
+      ...optimisticNote,
+      id: String(savedNoteData.id),
+      createdAt: savedNoteData.created_at ?? optimisticNote.createdAt,
+    };
+    dispatch({ type: "replace", optimisticId: optimisticNote.id, note: savedNote });
+    setSelectedNoteId(savedNote.id);
 
     const rewardResult = await applyPetAction(activeSpaceId, "note", currentUser.id);
     if (rewardResult.petState) {
@@ -1637,6 +1699,7 @@ export default function Home() {
     setEditingNoteId(null);
     setIsNoteEditing(false);
     openNotesPanel();
+    announceFeedback("Note saved.");
   };
 
   const handleCalendarEventSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1646,74 +1709,146 @@ export default function Home() {
       return;
     }
 
-    const parsedEvents = parseCalendarEditorText(calendarEventDraft, selectedEventType).map((item, index) => ({
-      id: crypto.randomUUID(),
-      text: item.text,
-      eventType: item.eventType,
-      date: selectedCalendarDate,
-      createdAt: new Date(Date.now() + index).toISOString(),
-    }));
-
-    setCalendarEventsStatus("saving");
-
-    const previousEvents = calendarEvents;
-    setCalendarEvents((current) =>
-      sortCalendarEvents([
-        ...current.filter((item) => item.date !== selectedCalendarDate),
-        ...parsedEvents,
-      ]),
-    );
-    setHasHydratedCalendarEvents(true);
-
-    const { error: deleteError } = await supabase
-      .from("calender")
-      .delete()
-      .eq("space_id", activeSpaceId)
-      .eq("Date", selectedCalendarDate);
-
-    if (deleteError) {
-      setCalendarEvents(previousEvents);
-      const result = await fetchCalendarEventsForSpace(activeSpaceId);
-      setCalendarEvents(result.events ?? []);
-      setHasHydratedCalendarEvents(true);
-      setCalendarEventsStatus("error");
+    const trimmedEvent = calendarEventDraft.trim();
+    if (!trimmedEvent) {
       return;
     }
+    setCalendarEventsStatus("saving");
 
-    if (parsedEvents.length > 0) {
-      const { error: insertError } = await supabase.from("calender").insert(
-        parsedEvents.map((item) => ({
-          space_id: activeSpaceId,
-          Event: item.text,
-          EventType: item.eventType,
-          Date: item.date,
-        })),
-      );
-
-      if (insertError) {
-        const result = await fetchCalendarEventsForSpace(activeSpaceId);
-        setCalendarEvents(result.events ?? []);
+    if (editingCalendarEventId) {
+      const previousEvent = calendarEvents.find((item) => item.id === editingCalendarEventId);
+      if (!previousEvent) {
         setHasHydratedCalendarEvents(true);
         setCalendarEventsStatus("error");
         return;
       }
+
+      const updatedEvent = {
+        ...previousEvent,
+        text: trimmedEvent,
+        eventType: selectedEventType,
+      };
+      setCalendarEvents((current) =>
+        sortCalendarEvents(
+          current.map((item) => (item.id === editingCalendarEventId ? updatedEvent : item)),
+        ),
+      );
+
+      const { error } = await supabase
+        .from("calender")
+        .update({
+          Event: trimmedEvent,
+          EventType: selectedEventType,
+        })
+        .eq("id", editingCalendarEventId)
+        .eq("space_id", activeSpaceId);
+
+      if (error) {
+        setCalendarEvents((current) =>
+          sortCalendarEvents(
+            current.map((item) => (item.id === editingCalendarEventId ? previousEvent : item)),
+          ),
+        );
+        setCalendarEventsStatus("error");
+        announceFeedback("That event could not be updated. Your original is still safe.");
+        return;
+      }
+
+      setCalendarEventDraft("");
+      setEditingCalendarEventId(null);
+      setCalendarEventsStatus("ready");
+      announceFeedback("Event updated.");
+      return;
     }
 
-    const rewardResult =
-      parsedEvents.length > 0
-        ? await applyPetAction(activeSpaceId, "calendar", currentUser.id)
-        : { error: null, petState: null };
+    const optimisticEvent: CalendarEventItem = {
+      id: `pending-${crypto.randomUUID()}`,
+      text: trimmedEvent,
+      eventType: selectedEventType,
+      date: selectedCalendarDate,
+      createdAt: new Date().toISOString(),
+    };
+    setCalendarEvents((current) => sortCalendarEvents([...current, optimisticEvent]));
+    setHasHydratedCalendarEvents(true);
+
+    const { data: insertedEvent, error: insertError } = await supabase
+      .from("calender")
+      .insert({
+        space_id: activeSpaceId,
+        Event: trimmedEvent,
+        EventType: selectedEventType,
+        Date: selectedCalendarDate,
+      })
+      .select("id, created_at")
+      .single();
+
+    if (insertError || !insertedEvent) {
+      setCalendarEvents((current) => current.filter((item) => item.id !== optimisticEvent.id));
+      setCalendarEventsStatus("error");
+      announceFeedback("That event could not be saved. Your other events were not changed.");
+      return;
+    }
+
+    setCalendarEvents((current) =>
+      sortCalendarEvents(
+        current.map((item) =>
+          item.id === optimisticEvent.id
+            ? {
+                ...optimisticEvent,
+                id: String(insertedEvent.id),
+                createdAt: insertedEvent.created_at ?? optimisticEvent.createdAt,
+              }
+            : item,
+        ),
+      ),
+    );
+
+    const rewardResult = await applyPetAction(activeSpaceId, "calendar", currentUser.id);
     if (rewardResult.petState) {
       setPetState(rewardResult.petState);
       setSelectedPetStage(getStageFromStatus(rewardResult.petState.status));
     }
 
-    if (parsedEvents.length > 0) {
-      void logUserActivity(currentUser.id, "calendar_updated", activeSpaceId);
-      void notifySpaceEvent("calendar", activeSpaceId);
+    void logUserActivity(currentUser.id, "calendar_updated", activeSpaceId);
+    void notifySpaceEvent("calendar", activeSpaceId);
+    setCalendarEventsStatus("ready");
+    setCalendarEventDraft("");
+    setSelectedEventType("Entertainment");
+    announceFeedback("Event added.");
+  };
+
+  const handleCalendarEventDelete = async (eventId: string) => {
+    if (!supabase || !activeSpaceId || calendarEventsStatus === "saving") {
+      return;
+    }
+
+    const eventToDelete = calendarEvents.find((item) => item.id === eventId);
+    if (!eventToDelete) {
+      return;
+    }
+
+    setCalendarEventsStatus("saving");
+    setCalendarEvents((current) => current.filter((item) => item.id !== eventId));
+
+    const { error } = await supabase
+      .from("calender")
+      .delete()
+      .eq("id", eventId)
+      .eq("space_id", activeSpaceId);
+
+    if (error) {
+      setCalendarEvents((current) => sortCalendarEvents([...current, eventToDelete]));
+      setCalendarEventsStatus("error");
+      announceFeedback("That event could not be removed.");
+      return;
+    }
+
+    if (editingCalendarEventId === eventId) {
+      setEditingCalendarEventId(null);
+      setCalendarEventDraft("");
     }
     setCalendarEventsStatus("ready");
-    setSelectedEventType("娱乐");
+    announceFeedback("Event removed.");
   };
 
   const handleFoodPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -1779,6 +1914,7 @@ export default function Home() {
     if (isDroppedOnPet && selectedPetStage === "pet") {
       triggerPetEat();
       void feedPet();
+      announceFeedback("Mooshroom enjoyed the snack.");
     }
 
     if (foodButtonRef.current?.hasPointerCapture(event.pointerId)) {
@@ -1807,12 +1943,45 @@ export default function Home() {
 
     if (isDroppedOnPet) {
       triggerWaterEffect();
+      completeCareHint();
+      announceFeedback(
+        selectedPetStage === "pet" ? "Mooshroom has been watered." : "The little Mooshroom is growing.",
+      );
 
       if (selectedPetStage === "pet") {
         triggerPetWater();
         void waterPet();
       }
     }
+  };
+
+  const handleKettleKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") {
+      return;
+    }
+
+    event.preventDefault();
+    triggerWaterEffect();
+    completeCareHint();
+    announceFeedback(
+      selectedPetStage === "pet" ? "Mooshroom has been watered." : "The little Mooshroom is growing.",
+    );
+
+    if (selectedPetStage === "pet") {
+      triggerPetWater();
+      void waterPet();
+    }
+  };
+
+  const handleFoodKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if ((event.key !== "Enter" && event.key !== " ") || selectedPetStage !== "pet") {
+      return;
+    }
+
+    event.preventDefault();
+    triggerPetEat();
+    void feedPet();
+    announceFeedback("Mooshroom enjoyed the snack.");
   };
 
   const activePetFrames = getActivePetFrames(selectedPetStage, petAnimation);
@@ -1830,6 +1999,7 @@ export default function Home() {
     authStatus === "syncing-space" ||
     (activeSpaceId !== null && !hasResolvedPetStage) ||
     !isInitialSceneReady;
+  const isDialogOpen = isNoteOpen || isCalendarOpen || isBackpackOpen;
 
   const feedPet = async () => {
     if (!activeSpaceId) {
@@ -1882,7 +2052,7 @@ export default function Home() {
                       className={styles.loadingIconFrame}
                     />
                     <img
-                      src={loadingFrameIcon}
+                      src={LOADING_FRAME_ICON}
                       alt=""
                       aria-hidden="true"
                       className={styles.loadingFrameIcon}
@@ -1909,7 +2079,11 @@ export default function Home() {
             sizes="(max-width: 768px) 100vw, 520px"
           />
 
-          <section className={styles.topDock} aria-label="Top user interface">
+          <section
+            className={styles.topDock}
+            aria-label="Top user interface"
+            inert={isDialogOpen}
+          >
             {topUiSlots.map((slot) => (
               <div key={slot.id} className={styles.topDockSlot}>
                 <Image
@@ -1930,6 +2104,7 @@ export default function Home() {
                       aria-haspopup="menu"
                       aria-controls="auth-menu"
                       aria-label="Open settings"
+                      title="Settings"
                     >
                       <Image
                         src={slot.icon ?? "/art/ui/Setting.webp"}
@@ -1943,6 +2118,14 @@ export default function Home() {
 
                     {isAuthMenuOpen ? (
                       <section id="auth-menu" className={styles.authPanel} aria-label="Settings panel">
+                        <button
+                          type="button"
+                          className={styles.authClose}
+                          onClick={() => setIsAuthMenuOpen(false)}
+                          aria-label="Close settings"
+                        >
+                          ×
+                        </button>
                         {currentUser ? (
                           <>
                             <div className={styles.authHeader}>
@@ -1983,6 +2166,7 @@ export default function Home() {
                                 type="submit"
                                 className={styles.authButton}
                                 disabled={
+                                  !email.trim() ||
                                   authStatus === "sending-link" ||
                                   authStatus === "verifying-code" ||
                                   authStatus === "syncing-space"
@@ -2094,6 +2278,7 @@ export default function Home() {
                     aria-expanded={isNoteOpen}
                     aria-controls="notes-panel"
                     aria-label={isNoteOpen ? "Close notes" : "Open notes"}
+                    title="Notes"
                   >
                     <Image
                       src={slot.icon ?? "/art/ui/Note.webp"}
@@ -2106,11 +2291,12 @@ export default function Home() {
                   </button>
                 ) : slot.action === "calendar" ? (
                   <button
+                    ref={calendarButtonRef}
                     type="button"
                     className={styles.frameAction}
                     onClick={() => {
                       if (isCalendarOpen) {
-                        setIsCalendarOpen(false);
+                        closeCalendarPanel();
                         return;
                       }
                       openCalendarPanel();
@@ -2118,6 +2304,7 @@ export default function Home() {
                     aria-expanded={isCalendarOpen}
                     aria-controls="calendar-panel"
                     aria-label={isCalendarOpen ? "Close calendar" : "Open calendar"}
+                    title="Calendar"
                   >
                     <Image
                       src={slot.icon ?? "/art/ui/Calender.webp"}
@@ -2130,11 +2317,12 @@ export default function Home() {
                   </button>
                 ) : slot.action === "backpack" ? (
                   <button
+                    ref={backpackButtonRef}
                     type="button"
                     className={styles.frameAction}
                     onClick={() => {
                       if (isBackpackOpen) {
-                        setIsBackpackOpen(false);
+                        closeBackpackPanel();
                         return;
                       }
                       openBackpackPanel();
@@ -2142,6 +2330,7 @@ export default function Home() {
                     aria-expanded={isBackpackOpen}
                     aria-controls="backpack-panel"
                     aria-label={isBackpackOpen ? "Close backpack" : "Open backpack"}
+                    title="Backpack"
                   >
                     <Image
                       src={slot.icon ?? "/art/ui/Backpack.webp"}
@@ -2175,7 +2364,11 @@ export default function Home() {
             ))}
           </section>
 
-          <aside className={styles.bottomRightFrames} aria-label="Pet tools">
+          <aside
+            className={styles.bottomRightFrames}
+            aria-label="Pet tools"
+            inert={isDialogOpen}
+          >
             <div className={styles.resourceFrame}>
               <Image
                 src="/art/ui/UI%20frame.webp"
@@ -2193,13 +2386,14 @@ export default function Home() {
                 onPointerMove={handleKettlePointerMove}
                 onPointerUp={finishKettleDrag}
                 onPointerCancel={finishKettleDrag}
+                onKeyDown={handleKettleKeyDown}
                 style={
                   {
                     "--drag-x": `${kettleOffset.x}px`,
                     "--drag-y": `${kettleOffset.y}px`,
                   } as CSSProperties
                 }
-                aria-label="Drag kettle"
+                aria-label="Water Mooshroom — drag the kettle or press Enter"
               >
                 <Image
                   src="/art/ui/Kettle.webp"
@@ -2228,13 +2422,14 @@ export default function Home() {
                   onPointerMove={handleFoodPointerMove}
                   onPointerUp={finishFoodDrag}
                   onPointerCancel={finishFoodDrag}
+                  onKeyDown={handleFoodKeyDown}
                   style={
                     {
                       "--drag-x": `${foodOffset.x}px`,
                       "--drag-y": `${foodOffset.y}px`,
                     } as CSSProperties
                   }
-                  aria-label="Drag food"
+                  aria-label="Feed Mooshroom — drag the food or press Enter"
                 >
                   <Image
                     src="/art/ui/Food.webp"
@@ -2248,10 +2443,21 @@ export default function Home() {
             ) : null}
           </aside>
 
+          {showCareHint && !isDialogOpen ? (
+            <div className={styles.careHint} role="note">
+              <button type="button" onClick={completeCareHint} aria-label="Dismiss care hint">
+                ×
+              </button>
+              <strong>Help Mooshroom grow</strong>
+              <span>Drag the kettle onto Mooshroom.</span>
+            </div>
+          ) : null}
+
           <div
             className={`${styles.petStage} ${
               selectedPetStage !== "pet" ? styles.petStagePreview : ""
             }`}
+            inert={isDialogOpen}
           >
             {canShowDigPrompt ? (
               <button
@@ -2347,11 +2553,14 @@ export default function Home() {
           </div>
 
           <section
+            ref={calendarPanelRef}
             id="calendar-panel"
             role="dialog"
             aria-modal="true"
             aria-label="Calendar"
             aria-hidden={!isCalendarOpen}
+            inert={!isCalendarOpen}
+            tabIndex={-1}
             className={`${styles.calendarPanel} ${isCalendarOpen ? styles.calendarPanelOpen : ""} ${
               isCalendarEditing ? styles.calendarPanelEditing : ""
             }`}
@@ -2361,23 +2570,88 @@ export default function Home() {
               month={calendarViewDate.getMonth() + 1}
               selectedDate={selectedCalendarDate}
               eventStampByDate={calendarEventStampByDate}
-              onSelectDate={(isoDate) => setSelectedCalendarDate(isoDate)}
-              onClose={() => setIsCalendarOpen(false)}
+              onSelectDate={(isoDate) => {
+                if (editingCalendarEventId) {
+                  setCalendarEventDraft("");
+                  setEditingCalendarEventId(null);
+                }
+                setSelectedEventType("Entertainment");
+                setSelectedCalendarDate(isoDate);
+              }}
+              onClose={closeCalendarPanel}
               onPreviousMonth={() => setCalendarViewDate((current) => shiftMonth(current, -1))}
                 onNextMonth={() => setCalendarViewDate((current) => shiftMonth(current, 1))}
                 footerContent={
                   <div className={styles.calendarFooterContent}>
+                    <div className={styles.calendarDaySummary}>
+                      <strong>{formatCalendarDate(selectedCalendarDate)}</strong>
+                      <span>
+                        {selectedDateEvents.length === 0
+                          ? "No events yet"
+                          : `${selectedDateEvents.length} event${
+                              selectedDateEvents.length === 1 ? "" : "s"
+                            }`}
+                      </span>
+                    </div>
+
+                    {selectedDateEvents.length > 0 ? (
+                      <div className={styles.calendarEventList} aria-label="Events for selected day">
+                        {selectedDateEvents.map((calendarEvent) => (
+                          <article className={styles.calendarEventItem} key={calendarEvent.id}>
+                            <button
+                              type="button"
+                              className={styles.calendarEventEdit}
+                              onClick={() => {
+                                setEditingCalendarEventId(calendarEvent.id);
+                                setCalendarEventDraft(calendarEvent.text);
+                                setSelectedEventType(calendarEvent.eventType);
+                                setIsCalendarEditing(true);
+                                window.setTimeout(
+                                  () =>
+                                    calendarEventInputRef.current?.focus({
+                                      preventScroll: true,
+                                    }),
+                                  0,
+                                );
+                              }}
+                              aria-label={`Edit ${calendarEvent.text}`}
+                            >
+                              <span>{calendarEvent.eventType}</span>
+                              <strong>{calendarEvent.text}</strong>
+                            </button>
+                            <button
+                              type="button"
+                              className={styles.calendarEventDelete}
+                              onClick={() => void handleCalendarEventDelete(calendarEvent.id)}
+                              aria-label={`Remove ${calendarEvent.text}`}
+                            >
+                              ×
+                            </button>
+                          </article>
+                        ))}
+                      </div>
+                    ) : null}
+
                     <form
                       className={styles.calendarFooterForm}
                       onSubmit={handleCalendarEventSubmit}
-                      onClick={(event) => {
-                        const target = event.target as HTMLElement;
-
-                        if (!target.closest("button, select, option")) {
-                          calendarEventInputRef.current?.focus({ preventScroll: true });
-                        }
-                      }}
                     >
+                      <textarea
+                        ref={calendarEventInputRef}
+                        value={calendarEventDraft}
+                        onChange={(event) => setCalendarEventDraft(event.target.value)}
+                        onFocus={() => setIsCalendarEditing(true)}
+                        onBlur={() => {
+                          setIsCalendarEditing(false);
+                          resetWindowViewport();
+                        }}
+                        className={styles.calendarFooterTextarea}
+                        rows={2}
+                        maxLength={240}
+                        placeholder="Add an event..."
+                        aria-label="Event description"
+                      />
+
                       <div className={styles.calendarFooterControls}>
                         <select
                           value={selectedEventType}
@@ -2392,28 +2666,33 @@ export default function Home() {
                         ))}
                       </select>
 
-                      <button
-                        type="submit"
-                        className={styles.calendarFooterSaveButton}
-                        disabled={isCalendarEventSaveDisabled}
-                      >
-                        {calendarEventsStatus === "saving" ? "Saving..." : "Save"}
-                      </button>
-                    </div>
-
-                      <textarea
-                        ref={calendarEventInputRef}
-                        value={calendarEventDraft}
-                        onChange={(event) => setCalendarEventDraft(event.target.value)}
-                        onFocus={() => setIsCalendarEditing(true)}
-                        onBlur={() => {
-                          setIsCalendarEditing(false);
-                          resetWindowViewport();
-                        }}
-                        className={styles.calendarFooterTextarea}
-                        rows={7}
-                        placeholder="One event per line..."
-                      />
+                        <button
+                          type="submit"
+                          className={styles.calendarFooterSaveButton}
+                          disabled={isCalendarEventSaveDisabled}
+                        >
+                          {calendarEventsStatus === "saving"
+                            ? "Saving..."
+                            : editingCalendarEventId
+                              ? "Update"
+                              : "Add"}
+                        </button>
+                      </div>
+                      <div className={styles.calendarComposerMeta}>
+                        <span>{calendarEventDraft.length} / 240</span>
+                        {editingCalendarEventId ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingCalendarEventId(null);
+                              setCalendarEventDraft("");
+                              setSelectedEventType("Entertainment");
+                            }}
+                          >
+                            Cancel edit
+                          </button>
+                        ) : null}
+                      </div>
                     </form>
 
                 </div>
@@ -2422,11 +2701,14 @@ export default function Home() {
           </section>
 
           <section
+            ref={backpackPanelRef}
             id="backpack-panel"
             role="dialog"
             aria-modal="true"
             aria-label="Backpack"
             aria-hidden={!isBackpackOpen}
+            inert={!isBackpackOpen}
+            tabIndex={-1}
             className={`${styles.backpackPanel} ${isBackpackOpen ? styles.backpackPanelOpen : ""}`}
           >
             <div className={styles.backpackShell}>
@@ -2434,7 +2716,7 @@ export default function Home() {
                 <button
                   type="button"
                   className={styles.panelClose}
-                  onClick={() => setIsBackpackOpen(false)}
+                  onClick={closeBackpackPanel}
                   aria-label="Close backpack"
                 >
                   <span aria-hidden="true">x</span>
@@ -2442,9 +2724,22 @@ export default function Home() {
               </header>
 
               {inventoryStatus === "loading" ? (
-                <div className={styles.backpackEmpty} aria-hidden="true" />
+                <div className={styles.backpackEmpty} role="status">
+                  <span className={styles.backpackLoader} aria-hidden="true" />
+                  <strong>Checking the backpack…</strong>
+                </div>
               ) : inventoryItems.length === 0 ? (
-                <div className={styles.backpackEmpty} aria-hidden="true" />
+                <div className={styles.backpackEmpty}>
+                  <Image
+                    src="/art/ui/shovel.webp"
+                    alt=""
+                    width={72}
+                    height={72}
+                    unoptimized
+                  />
+                  <strong>Your backpack is empty</strong>
+                  <span>Care for Mooshroom and dig for treasures to collect items.</span>
+                </div>
               ) : (
                 <div className={styles.backpackShelfGrid}>
                   {inventoryItems.map((item) => (
@@ -2483,33 +2778,33 @@ export default function Home() {
                 <p className={`${styles.backpackStatus} ${styles.backpackStatusError}`}>
                   Couldn&apos;t load space items from Supabase.
                 </p>
-              ) : (
+              ) : inventoryItems.length > 0 ? (
                 <p className={styles.backpackStatus}>
                   Showing {inventoryItems.length} item{inventoryItems.length === 1 ? "" : "s"} in this space.
                 </p>
-              )}
+              ) : null}
             </div>
           </section>
 
-            <NotePanel
-              isOpen={isNoteOpen}
+          <NotePanel
+            isOpen={isNoteOpen}
             isEditing={isNoteEditing}
             notesStatus={notesStatus}
             hasHydrated={notesState.hasHydrated}
-            previewNotes={previewNotes}
+            notes={notesState.notes}
             selectedNoteId={selectedNoteId}
             cardLayouts={cardLayouts}
             draft={draft}
             isSaveDisabled={isSaveDisabled}
             noteInputRef={noteInputRef}
-              onClose={closeNotesPanel}
-              onSelectNote={(noteId) => {
+            onClose={closeNotesPanel}
+            onSelectNote={(noteId) => {
                 setSelectedNoteId(noteId);
                 setEditingNoteId(null);
                 setIsNoteEditing(false);
                 setDraft("");
               }}
-              onEditNote={(noteId) => {
+            onEditNote={(noteId) => {
                 const noteToEdit = notesState.notes.find((note) => note.id === noteId);
                 if (!noteToEdit) {
                   return;
@@ -2527,21 +2822,31 @@ export default function Home() {
                   );
                 }, 0);
               }}
-              onStartEditing={() => {
+            onStartEditing={() => {
                 setEditingNoteId(null);
                 setIsNoteEditing(true);
                 window.setTimeout(() => {
                   noteInputRef.current?.focus({ preventScroll: true });
               }, 0);
             }}
-              onSubmit={handleSubmit}
-              onDraftChange={setDraft}
-              onInputFocus={() => setIsNoteEditing(true)}
-              onInputBlur={() => {
-                resetWindowViewport();
-              }}
-              formatShortDate={formatShortDate}
-            />
+            onCancelEditing={() => {
+              setIsNoteEditing(false);
+              setEditingNoteId(null);
+              setDraft("");
+              resetWindowViewport();
+            }}
+            onSubmit={handleSubmit}
+            onDraftChange={setDraft}
+            onInputFocus={() => setIsNoteEditing(true)}
+            onInputBlur={() => {
+              resetWindowViewport();
+            }}
+            formatShortDate={formatShortDate}
+          />
+
+          <div className={styles.feedbackToast} role="status" aria-live="polite" aria-atomic="true">
+            {feedbackMessage}
+          </div>
         </div>
       </section>
     </main>
@@ -2767,8 +3072,7 @@ async function fetchNotesForSpace(spaceId: string) {
     .from("notes")
     .select("id, content, created_at")
     .eq("space_id", spaceId)
-    .order("created_at", { ascending: false })
-    .limit(20);
+    .order("created_at", { ascending: false });
 
   if (error) {
     return { error: error.message, notes: [] as NoteItem[] };
@@ -2794,8 +3098,7 @@ async function fetchCalendarEventsForSpace(spaceId: string) {
     .select("id, Event, EventType, Date, created_at")
     .eq("space_id", spaceId)
     .order("Date", { ascending: true })
-    .order("created_at", { ascending: false })
-    .limit(100);
+    .order("created_at", { ascending: false });
 
   if (error) {
     return { error: error.message, events: [] as CalendarEventItem[] };
@@ -3515,43 +3818,16 @@ function getTodayDateValue() {
   return new Date(now.getTime() - timezoneOffset).toISOString().slice(0, 10);
 }
 
-function formatCalendarEditorText(items: CalendarEventItem[]) {
-  return items.map((item) => `[${item.eventType}] ${item.text}`.trim()).join("\n");
-}
+function formatCalendarDate(date: string) {
+  if (!date) {
+    return "Selected day";
+  }
 
-function parseCalendarEditorText(value: string, defaultEventType: EventType) {
-  return value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const prefixedMatch = line.match(/^\[(.+?)\]\s*(.+)$/);
-
-      if (prefixedMatch) {
-        const [, maybeType, text] = prefixedMatch;
-
-        if (EVENT_TYPES.includes(maybeType as EventType)) {
-          return {
-            eventType: maybeType as EventType,
-            text: text.trim(),
-          };
-        }
-      }
-
-      return {
-        eventType: defaultEventType,
-        text: line,
-      };
-    })
-    .filter((item) => item.text.length > 0);
-}
-
-function normalizeCalendarEditorText(value: string) {
-  return value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .join("\n");
+  return new Date(`${date}T12:00:00`).toLocaleDateString("en-GB", {
+    weekday: "short",
+    day: "numeric",
+    month: "short",
+  });
 }
 
 function sortCalendarEvents(items: CalendarEventItem[]) {
@@ -3570,7 +3846,14 @@ function normalizeEventType(value: string | null): EventType {
     return value as EventType;
   }
 
-  return "随记";
+  const legacyEventTypes: Record<string, EventType> = {
+    娱乐: "Entertainment",
+    办事: "Errand",
+    吃饭: "Meal",
+    随记: "Note",
+  };
+
+  return value ? legacyEventTypes[value] ?? "Note" : "Note";
 }
 
 function shiftMonth(date: Date, offset: number) {

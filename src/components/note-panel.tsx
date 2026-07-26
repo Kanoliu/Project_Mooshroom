@@ -1,6 +1,17 @@
 import Image from "next/image";
-import type { CSSProperties, FormEventHandler, RefObject } from "react";
+import {
+  type CSSProperties,
+  type FormEventHandler,
+  type RefObject,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import styles from "./note-panel.module.css";
+
+const NOTES_PER_PAGE = 4;
+const NOTE_CHARACTER_LIMIT = 2000;
 
 type NoteItem = {
   id: string;
@@ -25,7 +36,7 @@ type NotePanelProps = {
   isEditing: boolean;
   notesStatus: NotesStatus;
   hasHydrated: boolean;
-  previewNotes: NoteItem[];
+  notes: NoteItem[];
   selectedNoteId: string | null;
   cardLayouts: CardLayout[];
   draft: string;
@@ -35,6 +46,7 @@ type NotePanelProps = {
   onSelectNote: (noteId: string) => void;
   onEditNote: (noteId: string) => void;
   onStartEditing: () => void;
+  onCancelEditing: () => void;
   onSubmit: FormEventHandler<HTMLFormElement>;
   onDraftChange: (value: string) => void;
   onInputFocus: () => void;
@@ -47,7 +59,7 @@ export function NotePanel({
   isEditing,
   notesStatus,
   hasHydrated,
-  previewNotes,
+  notes,
   selectedNoteId,
   cardLayouts,
   draft,
@@ -57,17 +69,43 @@ export function NotePanel({
   onSelectNote,
   onEditNote,
   onStartEditing,
+  onCancelEditing,
   onSubmit,
   onDraftChange,
   onInputFocus,
   onInputBlur,
   formatShortDate,
 }: NotePanelProps) {
-  const selectedPreviewNote =
-    previewNotes.find((note) => note.id === selectedNoteId) ?? previewNotes[0] ?? null;
-  const viewerTextClassName = selectedPreviewNote
-    ? `${styles.noteViewerText} ${getViewerTextSizeClass(selectedPreviewNote.text)}`
+  const [pageIndex, setPageIndex] = useState(0);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const totalPages = Math.max(1, Math.ceil(notes.length / NOTES_PER_PAGE));
+  const visibleNotes = useMemo(
+    () => notes.slice(pageIndex * NOTES_PER_PAGE, (pageIndex + 1) * NOTES_PER_PAGE),
+    [notes, pageIndex],
+  );
+  const selectedNote = notes.find((note) => note.id === selectedNoteId) ?? notes[0] ?? null;
+  const viewerTextClassName = selectedNote
+    ? `${styles.noteViewerText} ${getViewerTextSizeClass(selectedNote.text)}`
     : styles.noteViewerText;
+
+  useEffect(() => {
+    const selectedIndex = notes.findIndex((note) => note.id === selectedNoteId);
+    const pageUpdate = window.setTimeout(() => {
+      setPageIndex((current) =>
+        selectedIndex >= 0
+          ? Math.floor(selectedIndex / NOTES_PER_PAGE)
+          : Math.min(current, totalPages - 1),
+      );
+    }, 0);
+
+    return () => window.clearTimeout(pageUpdate);
+  }, [notes, selectedNoteId, totalPages]);
+
+  useEffect(() => {
+    if (isOpen && !isEditing) {
+      window.setTimeout(() => closeButtonRef.current?.focus({ preventScroll: true }), 0);
+    }
+  }, [isEditing, isOpen]);
 
   return (
     <section
@@ -76,6 +114,7 @@ export function NotePanel({
       aria-modal="true"
       aria-label="Notes"
       aria-hidden={!isOpen}
+      inert={!isOpen}
       className={`${styles.notesPanel} ${isOpen ? styles.notesPanelOpen : ""} ${
         isEditing ? styles.notesPanelEditing : ""
       }`}
@@ -92,6 +131,7 @@ export function NotePanel({
       <div className={styles.notesPanelInner}>
         <header className={styles.panelHeader}>
           <button
+            ref={closeButtonRef}
             type="button"
             className={styles.panelClose}
             onClick={onClose}
@@ -107,37 +147,61 @@ export function NotePanel({
               <p>Loading shared notes...</p>
               <span>Notes from everyone in this space will appear here.</span>
             </div>
-          ) : hasHydrated && previewNotes.length === 0 ? (
+          ) : hasHydrated && notes.length === 0 ? (
             <div className={styles.emptyBoard}>
               <p>No notes yet.</p>
               <span>The first note in this space will show up here.</span>
             </div>
           ) : (
-            previewNotes.map((note, index) => (
-              <button
-                type="button"
-                key={note.id}
-                className={`${styles.boardCard} ${
-                  selectedPreviewNote?.id === note.id ? styles.boardCardActive : ""
-                }`}
-                style={getCardStyle(cardLayouts[index] ?? cardLayouts[0])}
-                onClick={() => onSelectNote(note.id)}
-                onDoubleClick={() => onEditNote(note.id)}
-                aria-pressed={selectedPreviewNote?.id === note.id}
-                aria-label={`Open note from ${formatShortDate(note.createdAt)}`}
-              >
-                <Image
-                  src={(cardLayouts[index] ?? cardLayouts[0]).art}
-                  alt=""
-                  fill
-                  unoptimized
-                  className={styles.boardCardArt}
-                />
-                <div className={styles.boardCardContent}>
-                  <p className={styles.boardCardText}>{note.text}</p>
-                </div>
-              </button>
-            ))
+            <>
+              {visibleNotes.map((note, index) => (
+                <button
+                  type="button"
+                  key={note.id}
+                  className={`${styles.boardCard} ${
+                    selectedNote?.id === note.id ? styles.boardCardActive : ""
+                  }`}
+                  style={getCardStyle(cardLayouts[index] ?? cardLayouts[0])}
+                  onClick={() => onSelectNote(note.id)}
+                  aria-pressed={selectedNote?.id === note.id}
+                  aria-label={`Open note from ${formatShortDate(note.createdAt)}`}
+                >
+                  <Image
+                    src={(cardLayouts[index] ?? cardLayouts[0]).art}
+                    alt=""
+                    fill
+                    unoptimized
+                    className={styles.boardCardArt}
+                  />
+                  <div className={styles.boardCardContent}>
+                    <p className={styles.boardCardText}>{note.text}</p>
+                  </div>
+                </button>
+              ))}
+              {totalPages > 1 ? (
+                <nav className={styles.notePagination} aria-label="Note pages">
+                  <button
+                    type="button"
+                    onClick={() => setPageIndex((current) => Math.max(0, current - 1))}
+                    disabled={pageIndex === 0}
+                    aria-label="Newer notes"
+                  >
+                    ‹
+                  </button>
+                  <span>
+                    {pageIndex + 1} / {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setPageIndex((current) => Math.min(totalPages - 1, current + 1))}
+                    disabled={pageIndex === totalPages - 1}
+                    aria-label="Older notes"
+                  >
+                    ›
+                  </button>
+                </nav>
+              ) : null}
+            </>
           )}
         </div>
 
@@ -154,23 +218,41 @@ export function NotePanel({
                 onFocus={onInputFocus}
                 onBlur={onInputBlur}
                 placeholder="Write a little note..."
+                maxLength={NOTE_CHARACTER_LIMIT}
               />
-              <button type="submit" className={styles.saveButton} disabled={isSaveDisabled}>
-                {notesStatus === "saving" ? "Saving..." : "Save"}
-              </button>
+              <div className={styles.composerActions}>
+                <span className={styles.characterCount}>
+                  {draft.length} / {NOTE_CHARACTER_LIMIT}
+                </span>
+                <button type="button" className={styles.secondaryButton} onClick={onCancelEditing}>
+                  Cancel
+                </button>
+                <button type="submit" className={styles.saveButton} disabled={isSaveDisabled}>
+                  {notesStatus === "saving" ? "Saving..." : "Save"}
+                </button>
+              </div>
             </div>
           ) : (
             <div className={styles.noteViewer}>
-              {selectedPreviewNote ? (
-                <>
-                  <p className={viewerTextClassName}>{selectedPreviewNote.text}</p>
-                </>
+              {selectedNote ? (
+                <p className={viewerTextClassName}>{selectedNote.text}</p>
               ) : (
-                <p className={styles.noteViewerEmpty}>Click a note to view it here.</p>
+                <p className={styles.noteViewerEmpty}>Select a note to read it here.</p>
               )}
-              <button type="button" className={styles.saveButton} onClick={onStartEditing}>
-                Write note
-              </button>
+              <div className={styles.viewerActions}>
+                {selectedNote ? (
+                  <button
+                    type="button"
+                    className={styles.secondaryButton}
+                    onClick={() => onEditNote(selectedNote.id)}
+                  >
+                    Edit
+                  </button>
+                ) : null}
+                <button type="button" className={styles.saveButton} onClick={onStartEditing}>
+                  New note
+                </button>
+              </div>
             </div>
           )}
         </form>

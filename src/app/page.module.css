@@ -208,7 +208,7 @@
   top: calc(100% + 8px);
   right: 0;
   width: min(340px, calc(100vw - 40px));
-  padding: 16px;
+  padding: 46px 16px 16px;
   border-radius: 24px;
   background:
     linear-gradient(180deg, rgba(255, 252, 246, 0.98) 0%, rgba(249, 240, 228, 0.94) 100%);
@@ -654,9 +654,9 @@
 .backpackPanel {
   position: absolute;
   left: 50%;
-  top: 52%;
+  top: 50%;
   z-index: 9;
-  width: min(calc(100% - 24px), 720px);
+  width: min(calc(100vmin - 24px), 720px);
   max-width: 720px;
   opacity: 0;
   pointer-events: none;
@@ -704,8 +704,10 @@
   position: relative;
   isolation: isolate;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   gap: 18px;
-  padding: 20px 20px 18px;
+  aspect-ratio: 1;
+  padding: 12% 12% 10%;
   border-radius: 28px;
   overflow: hidden;
   box-shadow:
@@ -739,10 +741,31 @@
 .backpackShelfGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  max-height: min(60vh, 520px);
+  align-content: center;
+  gap: clamp(8px, 1.6vmin, 16px);
+  max-height: none;
+  min-height: 0;
   overflow-y: auto;
-  padding: 6px 4px 2px;
+  padding: 0 2% 1%;
+}
+
+.authClose {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  z-index: 2;
+  display: inline-grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(127, 82, 50, 0.08);
+  color: #3d2618;
+  font: inherit;
+  font-size: 1.25rem;
+  cursor: pointer;
 }
 
 .backpackItemCard {
@@ -758,7 +781,7 @@
   display: grid;
   place-items: center;
   aspect-ratio: 1;
-  width: 100%;
+  width: min(100%, 142px);
   border-radius: 24px;
   background: transparent;
   box-shadow: none;
@@ -766,8 +789,8 @@
 }
 
 .backpackItemImage {
-  width: 86%;
-  height: 86%;
+  width: 68%;
+  height: 68%;
   object-fit: contain;
   display: block;
 }
@@ -805,7 +828,35 @@
 }
 
 .backpackEmpty {
-  min-height: min(52vh, 380px);
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 8px;
+  min-height: 0;
+  height: 100%;
+  padding: 16px;
+  color: #3d2618;
+  text-align: center;
+}
+
+.backpackEmpty strong {
+  font-size: clamp(1rem, 3vmin, 1.25rem);
+}
+
+.backpackEmpty span {
+  max-width: 28ch;
+  color: rgba(61, 38, 24, 0.72);
+  font-size: clamp(0.78rem, 2.5vmin, 0.95rem);
+  line-height: 1.4;
+}
+
+.backpackLoader {
+  width: 42px;
+  height: 42px;
+  border: 4px solid rgba(93, 54, 31, 0.18);
+  border-top-color: rgba(93, 54, 31, 0.72);
+  border-radius: 50%;
+  animation: backpackSpin 800ms linear infinite;
 }
 
 .backpackStatus {
@@ -823,33 +874,208 @@
 }
 
 .calendarFooterContent {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr) auto auto;
-  gap: clamp(0.3rem, 0.9vw, 0.55rem);
-  align-content: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 3px;
   height: 100%;
   min-width: 0;
   overflow: hidden;
-  padding: 8% 0 0;
+  padding: 0;
+}
+
+.calendarFooterContent:has(.calendarEventList) .calendarDaySummary {
+  display: none;
+}
+
+@keyframes backpackSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.careHint {
+  position: absolute;
+  right: 64px;
+  bottom: max(74px, calc(env(safe-area-inset-bottom, 0px) + 66px));
+  z-index: 7;
+  display: grid;
+  gap: 2px;
+  width: min(230px, calc(100% - 128px));
+  padding: 12px 36px 12px 14px;
+  border: 1px solid rgba(111, 71, 45, 0.2);
+  border-radius: 18px;
+  background: rgba(255, 248, 236, 0.94);
+  box-shadow: 0 14px 28px rgba(65, 47, 35, 0.2);
+  color: #3d2618;
+}
+
+.careHint strong {
+  font-size: 0.9rem;
+}
+
+.careHint span {
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.careHint button {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #3d2618;
+  font: inherit;
+  font-size: 1.1rem;
+  cursor: pointer;
+}
+
+.feedbackToast {
+  position: absolute;
+  left: 50%;
+  bottom: max(86px, calc(env(safe-area-inset-bottom, 0px) + 78px));
+  z-index: 12;
+  width: max-content;
+  max-width: calc(100% - 40px);
+  min-height: 0;
+  padding: 0;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: rgba(61, 38, 24, 0);
+  color: transparent;
+  font-size: 0.86rem;
+  font-weight: 800;
+  line-height: 1.35;
+  text-align: center;
+  pointer-events: none;
+  transition:
+    padding 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.feedbackToast:not(:empty) {
+  padding: 10px 16px;
+  background: rgba(61, 38, 24, 0.92);
+  color: #fff8ec;
+  box-shadow: 0 10px 24px rgba(43, 27, 17, 0.28);
+}
+
+.calendarDaySummary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  color: #2f180c;
+  font-size: clamp(0.68rem, 2.5vw, 0.82rem);
+  line-height: 1;
+}
+
+.calendarDaySummary strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendarDaySummary span {
+  flex: 0 0 auto;
+  color: rgba(47, 24, 12, 0.64);
+  font-size: 0.72rem;
+}
+
+.calendarEventList {
+  display: flex;
+  gap: 4px;
+  min-width: 0;
+  height: 24px;
+  flex: 0 0 24px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.calendarEventList::-webkit-scrollbar {
+  display: none;
+}
+
+.calendarEventItem {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: stretch;
+  max-width: min(220px, 72vw);
+  border: 1px solid rgba(111, 71, 45, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 248, 236, 0.66);
+  overflow: hidden;
+}
+
+.calendarEventEdit {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  min-height: 28px;
+  padding: 2px 8px;
+  border: 0;
+  background: transparent;
+  color: #2f180c;
+  font: inherit;
+  cursor: pointer;
+}
+
+.calendarEventEdit span {
+  color: rgba(47, 24, 12, 0.62);
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.calendarEventEdit strong {
+  overflow: hidden;
+  font-size: 0.76rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendarEventDelete {
+  display: inline-grid;
+  place-items: center;
+  width: 30px;
+  min-height: 28px;
+  padding: 0;
+  border: 0;
+  border-left: 1px solid rgba(111, 71, 45, 0.16);
+  background: rgba(127, 82, 50, 0.08);
+  color: #5d361f;
+  font: inherit;
+  font-size: 1rem;
+  cursor: pointer;
 }
 
 .calendarFooterForm {
   position: relative;
-  display: block;
-  width: 88%;
-  height: 120%;
-  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-rows: 34px 8px;
+  gap: 2px 6px;
+  width: 100%;
+  height: 44px;
+  flex: 0 0 44px;
   min-width: 0;
-  cursor: text;
 }
 
 .calendarFooterControls {
-  position: absolute;
-  right: 10px;
-  bottom: 10px;
-  z-index: 1;
   display: flex;
-  gap: 6px;
+  grid-column: 2;
+  grid-row: 1;
+  gap: 4px;
   align-items: center;
 }
 
@@ -864,9 +1090,9 @@
 
 .calendarFooterSelect {
   width: auto;
-  min-width: 82px;
-  min-height: 32px;
-  padding: 0 30px 0 12px;
+  min-width: 94px;
+  min-height: 34px;
+  padding: 0 26px 0 9px;
   border: 1px solid rgba(111, 71, 45, 0.18);
   border-radius: 999px;
   background:
@@ -887,7 +1113,7 @@
     6px 6px,
     100% 100%;
   background-repeat: no-repeat;
-  font-size: 0.94rem;
+  font-size: 0.78rem;
   font-weight: 700;
   appearance: none;
   -webkit-appearance: none;
@@ -895,26 +1121,28 @@
 }
 
 .calendarFooterTextarea {
-  height: 100%;
-  min-height: 100%;
-  max-height: none;
+  grid-column: 1;
+  grid-row: 1;
+  height: 34px;
+  min-height: 34px;
+  max-height: 34px;
   resize: none;
-  padding: 10px 10px 42px;
-  font-size: 1.14rem;
-  line-height: 1.52;
+  padding: 7px 8px;
+  font-size: 0.9rem;
+  line-height: 1.25;
   font-weight: 800;
   overflow: hidden;
-  border: 0;
+  border: 1px solid rgba(111, 71, 45, 0.2);
   outline: 0;
-  border-radius: 0;
-  background: transparent;
+  border-radius: 10px;
+  background: rgba(255, 248, 236, 0.48);
   box-shadow: none;
 }
 
 .calendarFooterSaveButton {
-  min-width: 66px;
-  min-height: 30px;
-  padding: 0 12px;
+  min-width: 52px;
+  min-height: 34px;
+  padding: 0 9px;
   border: 0;
   border-radius: 999px;
   background: rgba(127, 82, 50, 0.14);
@@ -923,7 +1151,7 @@
     inset 0 0 0 1px rgba(111, 71, 45, 0.1);
   color: #000;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.78rem;
   font-weight: 700;
   cursor: pointer;
 }
@@ -931,6 +1159,34 @@
 .calendarFooterSaveButton:disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+.calendarComposerMeta {
+  display: flex;
+  grid-column: 1 / -1;
+  grid-row: 2;
+  justify-content: space-between;
+  color: rgba(47, 24, 12, 0.58);
+  font-size: 0.62rem;
+  line-height: 1;
+}
+
+.calendarComposerMeta button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #5d361f;
+  font: inherit;
+  font-weight: 800;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.calendarEventEdit:focus-visible,
+.calendarEventDelete:focus-visible,
+.calendarComposerMeta button:focus-visible {
+  outline: 2px solid rgba(117, 73, 38, 0.72);
+  outline-offset: -2px;
 }
 
 .calendarFooterMessage,
@@ -1239,10 +1495,13 @@
   .authInput,
   .calendarSelect,
   .calendarDateInput,
-  .calendarTextarea,
+  .calendarTextarea {
+    font-size: 18px;
+  }
+
   .calendarFooterSelect,
   .calendarFooterTextarea {
-    font-size: 18px;
+    font-size: 16px;
   }
 
   .resourceFrame {
@@ -1308,9 +1567,9 @@
   }
 
   .backpackPanel {
-    width: min(calc(100% - 8px), 520px);
+    width: min(calc(100vmin - 8px), 520px);
     max-width: 520px;
-    top: 54%;
+    top: 50%;
   }
 
   .backpackPanelOpen {
@@ -1323,13 +1582,12 @@
 
   .backpackShell {
     gap: 12px;
-    padding: 14px 14px 12px;
+    padding: 12% 12% 10%;
     border-radius: 24px;
   }
 
   .backpackShelfGrid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    max-height: min(58vh, 430px);
     gap: 12px;
   }
 
@@ -1357,7 +1615,7 @@
   }
 
   .calendarFooterTextarea {
-    font-size: 18px;
+    font-size: 16px;
   }
 
   .calendarSaveButton {
@@ -1370,8 +1628,7 @@
   }
 
   .calendarFooterControls {
-    bottom: 6px;
-    right: 6px;
+    gap: 3px;
   }
 
   .calendarFooterSaveButton {
@@ -1379,7 +1636,7 @@
   }
 
   .calendarFooterTextarea {
-    padding: 8px 8px 40px;
+    padding: 6px 7px;
   }
 
   .noteStatus {
@@ -1388,5 +1645,34 @@
 
   .resourceIcon {
     transform: scale(0.84);
+  }
+}
+
+@media (max-width: 360px) {
+  .calendarDaySummary {
+    display: none;
+  }
+
+  .calendarFooterContent:not(:has(.calendarEventList)) .calendarFooterForm {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: 34px 34px;
+    height: 70px;
+    flex-basis: 70px;
+    gap: 2px;
+  }
+
+  .calendarFooterContent:not(:has(.calendarEventList)) .calendarFooterTextarea {
+    grid-column: 1;
+    grid-row: 1;
+  }
+
+  .calendarFooterContent:not(:has(.calendarEventList)) .calendarFooterControls {
+    grid-column: 1;
+    grid-row: 2;
+    justify-content: flex-end;
+  }
+
+  .calendarFooterContent:not(:has(.calendarEventList)) .calendarComposerMeta {
+    display: none;
   }
 }
