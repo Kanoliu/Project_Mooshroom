@@ -342,6 +342,7 @@ export default function Home() {
   const [isNoteEditing, setIsNoteEditing] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [isCalendarEditing, setIsCalendarEditing] = useState(false);
+  const [isCalendarAgendaOpen, setIsCalendarAgendaOpen] = useState(false);
   const [editingCalendarEventId, setEditingCalendarEventId] = useState<string | null>(null);
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [calendarViewDate, setCalendarViewDate] = useState(() => {
@@ -446,6 +447,7 @@ export default function Home() {
     const today = new Date();
     setCalendarViewDate(new Date(today.getFullYear(), today.getMonth(), 1));
     setSelectedCalendarDate(getTodayDateValue());
+    setIsCalendarAgendaOpen(false);
     setIsCalendarOpen(true);
     setIsNoteOpen(false);
     setIsBackpackOpen(false);
@@ -455,6 +457,7 @@ export default function Home() {
 
   const closeCalendarPanel = () => {
     setIsCalendarOpen(false);
+    setIsCalendarAgendaOpen(false);
     setIsCalendarEditing(false);
     setEditingCalendarEventId(null);
     window.setTimeout(() => calendarButtonRef.current?.focus({ preventScroll: true }), 0);
@@ -1009,6 +1012,19 @@ export default function Home() {
   }, [activeSpaceId]);
 
   useEffect(() => {
+    if (isInitialSceneReady) {
+      return;
+    }
+
+    const preloadFallback = window.setTimeout(() => {
+      setDisplayedPreloadPercent(100);
+      setIsInitialSceneReady(true);
+    }, 6000);
+
+    return () => window.clearTimeout(preloadFallback);
+  }, [activeSpaceId, isInitialSceneReady]);
+
+  useEffect(() => {
     if (activeSpaceId && !hasResolvedPetStage) {
       return;
     }
@@ -1348,6 +1364,12 @@ export default function Home() {
 
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
+        if (isCalendarAgendaOpen) {
+          setIsCalendarAgendaOpen(false);
+          setIsCalendarEditing(false);
+          setEditingCalendarEventId(null);
+          return;
+        }
         setIsCalendarOpen(false);
         setIsCalendarEditing(false);
         setEditingCalendarEventId(null);
@@ -1357,7 +1379,7 @@ export default function Home() {
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isCalendarOpen]);
+  }, [isCalendarAgendaOpen, isCalendarOpen]);
 
   useEffect(() => {
     if (!isBackpackOpen) {
@@ -2562,27 +2584,167 @@ export default function Home() {
             inert={!isCalendarOpen}
             tabIndex={-1}
             className={`${styles.calendarPanel} ${isCalendarOpen ? styles.calendarPanelOpen : ""} ${
-              isCalendarEditing ? styles.calendarPanelEditing : ""
+              isCalendarAgendaOpen ? styles.calendarPanelAgendaOpen : ""
+            } ${isCalendarEditing ? styles.calendarPanelEditing : ""
             }`}
           >
-            <MonthCalendar
-              year={calendarViewDate.getFullYear()}
-              month={calendarViewDate.getMonth() + 1}
-              selectedDate={selectedCalendarDate}
-              eventStampByDate={calendarEventStampByDate}
-              onSelectDate={(isoDate) => {
-                if (editingCalendarEventId) {
-                  setCalendarEventDraft("");
-                  setEditingCalendarEventId(null);
-                }
-                setSelectedEventType("Entertainment");
-                setSelectedCalendarDate(isoDate);
-              }}
-              onClose={closeCalendarPanel}
-              onPreviousMonth={() => setCalendarViewDate((current) => shiftMonth(current, -1))}
+            {isCalendarAgendaOpen ? (
+              <div className={styles.calendarEditorCard}>
+                <header className={styles.calendarEditorHeader}>
+                  <button
+                    type="button"
+                    className={styles.calendarBackButton}
+                    onClick={() => {
+                      setIsCalendarAgendaOpen(false);
+                      setIsCalendarEditing(false);
+                      setEditingCalendarEventId(null);
+                    }}
+                  >
+                    <span aria-hidden="true">←</span>
+                    Calendar
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.calendarEditorClose}
+                    onClick={closeCalendarPanel}
+                    aria-label="Close calendar"
+                  >
+                    ×
+                  </button>
+                </header>
+
+                <div className={styles.calendarEditorTitle}>
+                  <span>Selected day</span>
+                  <h2>{formatCalendarDate(selectedCalendarDate)}</h2>
+                  <p>
+                    {selectedDateEvents.length === 0
+                      ? "No plans yet"
+                      : `${selectedDateEvents.length} event${
+                          selectedDateEvents.length === 1 ? "" : "s"
+                        }`}
+                  </p>
+                </div>
+
+                <div className={styles.calendarEditorList} aria-label="Events for selected day">
+                  {selectedDateEvents.length === 0 ? (
+                    <div className={styles.calendarEditorEmpty}>
+                      <strong>This day is clear.</strong>
+                      <span>Add something below when you&apos;re ready.</span>
+                    </div>
+                  ) : (
+                    selectedDateEvents.map((calendarEvent) => (
+                      <article className={styles.calendarEditorEvent} key={calendarEvent.id}>
+                        <button
+                          type="button"
+                          className={styles.calendarEditorEventMain}
+                          onClick={() => {
+                            setEditingCalendarEventId(calendarEvent.id);
+                            setCalendarEventDraft(calendarEvent.text);
+                            setSelectedEventType(calendarEvent.eventType);
+                            window.setTimeout(
+                              () => calendarEventInputRef.current?.focus({ preventScroll: true }),
+                              0,
+                            );
+                          }}
+                          aria-label={`Edit ${calendarEvent.text}`}
+                        >
+                          <span>{calendarEvent.eventType}</span>
+                          <strong>{calendarEvent.text}</strong>
+                        </button>
+                        <button
+                          type="button"
+                          className={styles.calendarEditorDelete}
+                          onClick={() => void handleCalendarEventDelete(calendarEvent.id)}
+                          aria-label={`Remove ${calendarEvent.text}`}
+                        >
+                          Remove
+                        </button>
+                      </article>
+                    ))
+                  )}
+                </div>
+
+                <form className={styles.calendarEditorForm} onSubmit={handleCalendarEventSubmit}>
+                  <label htmlFor="calendar-event-input">
+                    {editingCalendarEventId ? "Edit event" : "New event"}
+                  </label>
+                  <textarea
+                    ref={calendarEventInputRef}
+                    id="calendar-event-input"
+                    value={calendarEventDraft}
+                    onChange={(event) => setCalendarEventDraft(event.target.value)}
+                    onFocus={() => setIsCalendarEditing(true)}
+                    onBlur={() => {
+                      setIsCalendarEditing(false);
+                      resetWindowViewport();
+                    }}
+                    className={styles.calendarEditorTextarea}
+                    rows={3}
+                    maxLength={240}
+                    placeholder="What is happening?"
+                  />
+                  <div className={styles.calendarEditorControls}>
+                    <select
+                      value={selectedEventType}
+                      onChange={(event) => setSelectedEventType(event.target.value as EventType)}
+                      className={styles.calendarEditorSelect}
+                      aria-label="Event type"
+                    >
+                      {EVENT_TYPES.map((eventType) => (
+                        <option key={eventType} value={eventType}>
+                          {eventType}
+                        </option>
+                      ))}
+                    </select>
+                    <span className={styles.calendarEditorCount}>
+                      {calendarEventDraft.length} / 240
+                    </span>
+                    {editingCalendarEventId ? (
+                      <button
+                        type="button"
+                        className={styles.calendarEditorCancel}
+                        onClick={() => {
+                          setEditingCalendarEventId(null);
+                          setCalendarEventDraft("");
+                          setSelectedEventType("Entertainment");
+                        }}
+                      >
+                        Cancel
+                      </button>
+                    ) : null}
+                    <button
+                      type="submit"
+                      className={styles.calendarEditorSave}
+                      disabled={isCalendarEventSaveDisabled}
+                    >
+                      {calendarEventsStatus === "saving"
+                        ? "Saving..."
+                        : editingCalendarEventId
+                          ? "Update"
+                          : "Add event"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            ) : (
+              <MonthCalendar
+                year={calendarViewDate.getFullYear()}
+                month={calendarViewDate.getMonth() + 1}
+                selectedDate={selectedCalendarDate}
+                eventStampByDate={calendarEventStampByDate}
+                onSelectDate={(isoDate) => {
+                  if (editingCalendarEventId) {
+                    setCalendarEventDraft("");
+                    setEditingCalendarEventId(null);
+                  }
+                  setSelectedEventType("Entertainment");
+                  setSelectedCalendarDate(isoDate);
+                }}
+                onClose={closeCalendarPanel}
+                onPreviousMonth={() => setCalendarViewDate((current) => shiftMonth(current, -1))}
                 onNextMonth={() => setCalendarViewDate((current) => shiftMonth(current, 1))}
                 footerContent={
-                  <div className={styles.calendarFooterContent}>
+                  <div className={styles.calendarFooterSummary}>
                     <div className={styles.calendarDaySummary}>
                       <strong>{formatCalendarDate(selectedCalendarDate)}</strong>
                       <span>
@@ -2593,111 +2755,17 @@ export default function Home() {
                             }`}
                       </span>
                     </div>
-
-                    {selectedDateEvents.length > 0 ? (
-                      <div className={styles.calendarEventList} aria-label="Events for selected day">
-                        {selectedDateEvents.map((calendarEvent) => (
-                          <article className={styles.calendarEventItem} key={calendarEvent.id}>
-                            <button
-                              type="button"
-                              className={styles.calendarEventEdit}
-                              onClick={() => {
-                                setEditingCalendarEventId(calendarEvent.id);
-                                setCalendarEventDraft(calendarEvent.text);
-                                setSelectedEventType(calendarEvent.eventType);
-                                setIsCalendarEditing(true);
-                                window.setTimeout(
-                                  () =>
-                                    calendarEventInputRef.current?.focus({
-                                      preventScroll: true,
-                                    }),
-                                  0,
-                                );
-                              }}
-                              aria-label={`Edit ${calendarEvent.text}`}
-                            >
-                              <span>{calendarEvent.eventType}</span>
-                              <strong>{calendarEvent.text}</strong>
-                            </button>
-                            <button
-                              type="button"
-                              className={styles.calendarEventDelete}
-                              onClick={() => void handleCalendarEventDelete(calendarEvent.id)}
-                              aria-label={`Remove ${calendarEvent.text}`}
-                            >
-                              ×
-                            </button>
-                          </article>
-                        ))}
-                      </div>
-                    ) : null}
-
-                    <form
-                      className={styles.calendarFooterForm}
-                      onSubmit={handleCalendarEventSubmit}
+                    <button
+                      type="button"
+                      className={styles.calendarManageButton}
+                      onClick={() => setIsCalendarAgendaOpen(true)}
                     >
-                      <textarea
-                        ref={calendarEventInputRef}
-                        value={calendarEventDraft}
-                        onChange={(event) => setCalendarEventDraft(event.target.value)}
-                        onFocus={() => setIsCalendarEditing(true)}
-                        onBlur={() => {
-                          setIsCalendarEditing(false);
-                          resetWindowViewport();
-                        }}
-                        className={styles.calendarFooterTextarea}
-                        rows={2}
-                        maxLength={240}
-                        placeholder="Add an event..."
-                        aria-label="Event description"
-                      />
-
-                      <div className={styles.calendarFooterControls}>
-                        <select
-                          value={selectedEventType}
-                          onChange={(event) => setSelectedEventType(event.target.value as EventType)}
-                        className={styles.calendarFooterSelect}
-                        aria-label="Event type"
-                      >
-                        {EVENT_TYPES.map((eventType) => (
-                          <option key={eventType} value={eventType}>
-                            {eventType}
-                          </option>
-                        ))}
-                      </select>
-
-                        <button
-                          type="submit"
-                          className={styles.calendarFooterSaveButton}
-                          disabled={isCalendarEventSaveDisabled}
-                        >
-                          {calendarEventsStatus === "saving"
-                            ? "Saving..."
-                            : editingCalendarEventId
-                              ? "Update"
-                              : "Add"}
-                        </button>
-                      </div>
-                      <div className={styles.calendarComposerMeta}>
-                        <span>{calendarEventDraft.length} / 240</span>
-                        {editingCalendarEventId ? (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingCalendarEventId(null);
-                              setCalendarEventDraft("");
-                              setSelectedEventType("Entertainment");
-                            }}
-                          >
-                            Cancel edit
-                          </button>
-                        ) : null}
-                      </div>
-                    </form>
-
-                </div>
-              }
-            />
+                      {selectedDateEvents.length === 0 ? "Add event" : "View events"}
+                    </button>
+                  </div>
+                }
+              />
+            )}
           </section>
 
           <section

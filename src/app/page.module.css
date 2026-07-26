@@ -641,7 +641,11 @@
   left: 50%;
   bottom: max(env(safe-area-inset-bottom, 0px), 0px);
   z-index: 9;
-  width: min(calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 12px), 590px);
+  width: min(
+    calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 12px),
+    72dvh,
+    590px
+  );
   max-width: 590px;
   opacity: 0;
   pointer-events: none;
@@ -649,6 +653,11 @@
   transition:
     transform 240ms ease,
     opacity 240ms ease;
+}
+
+.calendarPanel:focus,
+.backpackPanel:focus {
+  outline: none;
 }
 
 .backpackPanel {
@@ -675,6 +684,18 @@
 
 .calendarPanelEditing {
   transform: translate(-50%, calc(-30px - min(var(--keyboard-inset, 0px), 220px) * 0.18));
+}
+
+.calendarPanelAgendaOpen {
+  position: fixed;
+  width: min(calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 24px), 500px);
+  top: max(16px, env(safe-area-inset-top, 0px));
+  bottom: auto;
+  transform: translateX(-50%);
+}
+
+.calendarPanelAgendaOpen.calendarPanelEditing {
+  transform: translateX(-50%);
 }
 
 .backpackPanelOpen {
@@ -886,6 +907,250 @@
 
 .calendarFooterContent:has(.calendarEventList) .calendarDaySummary {
   display: none;
+}
+
+.calendarFooterSummary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  height: 100%;
+  min-width: 0;
+}
+
+.calendarManageButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 94px;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 999px;
+  background: #765039;
+  box-shadow: 0 8px 16px rgba(74, 49, 33, 0.18);
+  color: #fffaf2;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.calendarEditorCard {
+  display: grid;
+  grid-template-rows: auto auto minmax(88px, 1fr) auto;
+  gap: 16px;
+  width: 100%;
+  max-height: min(680px, calc(var(--app-height) - 32px));
+  padding: 20px;
+  border: 1px solid rgba(103, 66, 40, 0.28);
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(255, 250, 242, 0.98), rgba(241, 221, 196, 0.98));
+  box-shadow: 0 28px 56px rgba(55, 34, 20, 0.3);
+  color: #321d10;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.calendarEditorHeader,
+.calendarEditorControls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.calendarEditorHeader {
+  justify-content: space-between;
+}
+
+.calendarBackButton,
+.calendarEditorClose,
+.calendarEditorCancel,
+.calendarEditorDelete {
+  border: 0;
+  background: transparent;
+  color: #5d3923;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.calendarBackButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 8px;
+}
+
+.calendarEditorClose {
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  font-size: 1.5rem;
+}
+
+.calendarEditorTitle {
+  display: grid;
+  gap: 2px;
+}
+
+.calendarEditorTitle span,
+.calendarEditorTitle p {
+  margin: 0;
+  color: rgba(50, 29, 16, 0.62);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.calendarEditorTitle span {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.calendarEditorTitle h2 {
+  margin: 0;
+  font-size: clamp(1.35rem, 5vw, 1.9rem);
+  line-height: 1.15;
+}
+
+.calendarEditorList {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  min-height: 88px;
+  overflow-y: auto;
+}
+
+.calendarEditorEmpty {
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 4px;
+  min-height: 88px;
+  padding: 16px;
+  border: 1px dashed rgba(103, 66, 40, 0.28);
+  border-radius: 18px;
+  color: rgba(50, 29, 16, 0.66);
+  text-align: center;
+}
+
+.calendarEditorEmpty span {
+  font-size: 0.82rem;
+}
+
+.calendarEditorEvent {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  border: 1px solid rgba(103, 66, 40, 0.2);
+  border-radius: 16px;
+  background: rgba(255, 252, 247, 0.72);
+  overflow: hidden;
+}
+
+.calendarEditorEventMain {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 11px 13px;
+  border: 0;
+  background: transparent;
+  color: #321d10;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.calendarEditorEventMain span {
+  color: rgba(50, 29, 16, 0.58);
+  font-size: 0.68rem;
+  font-weight: 800;
+}
+
+.calendarEditorEventMain strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendarEditorDelete {
+  padding: 0 14px;
+  border-left: 1px solid rgba(103, 66, 40, 0.16);
+  color: #8b3d32;
+  font-size: 0.76rem;
+}
+
+.calendarEditorForm {
+  display: grid;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(103, 66, 40, 0.18);
+}
+
+.calendarEditorForm label {
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.calendarEditorTextarea {
+  width: 100%;
+  min-height: 88px;
+  max-height: 148px;
+  resize: vertical;
+  padding: 12px 14px;
+  border: 1px solid rgba(103, 66, 40, 0.26);
+  border-radius: 16px;
+  background: rgba(255, 253, 249, 0.92);
+  color: #321d10;
+  font: inherit;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.45;
+  box-sizing: border-box;
+}
+
+.calendarEditorSelect {
+  min-width: 0;
+  min-height: 42px;
+  padding: 0 12px;
+  border: 1px solid rgba(103, 66, 40, 0.24);
+  border-radius: 12px;
+  background: rgba(255, 253, 249, 0.88);
+  color: #321d10;
+  font: inherit;
+  font-weight: 700;
+}
+
+.calendarEditorCount {
+  margin-right: auto;
+  color: rgba(50, 29, 16, 0.56);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
+.calendarEditorCancel {
+  min-height: 42px;
+  padding: 0 8px;
+}
+
+.calendarEditorSave {
+  min-height: 42px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 999px;
+  background: #765039;
+  color: #fffaf2;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.calendarEditorSave:disabled {
+  opacity: 0.48;
+  cursor: not-allowed;
 }
 
 @keyframes backpackSpin {
@@ -1561,7 +1826,11 @@
   }
 
   .calendarPanel {
-    width: min(calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 4px), 502px);
+    width: min(
+      calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 4px),
+      72dvh,
+      502px
+    );
     max-width: 502px;
     bottom: max(2px, env(safe-area-inset-bottom, 0px));
   }
@@ -1674,5 +1943,52 @@
 
   .calendarFooterContent:not(:has(.calendarEventList)) .calendarComposerMeta {
     display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .calendarPanelAgendaOpen {
+    width: min(calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 16px), 500px);
+    top: max(8px, env(safe-area-inset-top, 0px));
+    bottom: auto;
+    transform: translateX(-50%);
+  }
+
+  .calendarPanelAgendaOpen.calendarPanelEditing {
+    transform: translateX(-50%);
+  }
+
+  .calendarEditorCard {
+    gap: 12px;
+    max-height: calc(var(--app-height) - 16px);
+    padding: 14px;
+    border-radius: 22px;
+  }
+
+  .calendarEditorControls {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .calendarEditorSelect {
+    width: 100%;
+  }
+
+  .calendarEditorCount {
+    justify-self: end;
+    margin-right: 0;
+  }
+
+  .calendarEditorCancel,
+  .calendarEditorSave {
+    grid-row: 2;
+  }
+
+  .calendarEditorCancel {
+    justify-self: end;
+  }
+
+  .calendarEditorSave {
+    width: 100%;
   }
 }
