@@ -2165,7 +2165,6 @@ export default function Home() {
           <section
             className={styles.topDock}
             aria-label="Top user interface"
-            inert={isDialogOpen}
           >
             {topUiSlots.map((slot) => (
               <div key={slot.id} className={styles.topDockSlot}>
@@ -2182,7 +2181,15 @@ export default function Home() {
                     <button
                       type="button"
                       className={styles.frameAction}
-                      onClick={() => setIsAuthMenuOpen((open) => !open)}
+                      onClick={() => {
+                        const shouldOpenSettings = !isAuthMenuOpen;
+                        setIsAuthMenuOpen(shouldOpenSettings);
+                        if (shouldOpenSettings) {
+                          setIsNoteOpen(false);
+                          setIsCalendarOpen(false);
+                          setIsBackpackOpen(false);
+                        }
+                      }}
                       aria-expanded={isAuthMenuOpen}
                       aria-haspopup="menu"
                       aria-controls="auth-menu"
@@ -2634,7 +2641,7 @@ export default function Home() {
             ref={calendarPanelRef}
             id="calendar-panel"
             role="dialog"
-            aria-modal="true"
+            aria-modal="false"
             aria-label="Calendar"
             aria-hidden={!isCalendarOpen}
             inert={!isCalendarOpen}
@@ -2801,9 +2808,21 @@ export default function Home() {
                 onNextMonth={() => setCalendarViewDate((current) => shiftMonth(current, 1))}
                 footerContent={
                   <div className={styles.calendarFooterSummary}>
-                    <div className={styles.calendarDaySummary}>
-                      <strong>{formatCalendarDate(selectedCalendarDate)}</strong>
-                    </div>
+                    {selectedDateEvents.length > 0 ? (
+                      <div className={styles.calendarSelectedEvent}>
+                        <span>{selectedDateEvents[0].eventType}</span>
+                        <strong title={selectedDateEvents[0].text}>
+                          {selectedDateEvents[0].text}
+                        </strong>
+                        {selectedDateEvents.length > 1 ? (
+                          <em>+{selectedDateEvents.length - 1}</em>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <div className={styles.calendarDaySummary}>
+                        <strong>No event</strong>
+                      </div>
+                    )}
                     <button
                       type="button"
                       className={styles.calendarManageButton}
@@ -2821,7 +2840,7 @@ export default function Home() {
             ref={backpackPanelRef}
             id="backpack-panel"
             role="dialog"
-            aria-modal="true"
+            aria-modal="false"
             aria-label="Backpack"
             aria-hidden={!isBackpackOpen}
             inert={!isBackpackOpen}

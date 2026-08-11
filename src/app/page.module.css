@@ -120,7 +120,7 @@
   top: 65px;
   left: 18px;
   right: 18px;
-  z-index: 8;
+  z-index: 12;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
@@ -580,6 +580,7 @@
   touch-action: manipulation;
   user-select: none;
   -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
   transform: translateZ(0);
   backface-visibility: hidden;
 }
@@ -919,6 +920,41 @@
   gap: 8px;
   height: 100%;
   min-width: 0;
+}
+
+.calendarSelectedEvent {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: center;
+  column-gap: 6px;
+  min-width: 0;
+  color: #2f180c;
+  line-height: 1.05;
+}
+
+.calendarSelectedEvent span {
+  grid-column: 1;
+  color: rgba(47, 24, 12, 0.6);
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.calendarSelectedEvent strong {
+  grid-column: 1;
+  overflow: hidden;
+  font-size: clamp(0.72rem, 2.6vw, 0.86rem);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.calendarSelectedEvent em {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+  color: rgba(47, 24, 12, 0.62);
+  font-size: 0.68rem;
+  font-style: normal;
+  font-weight: 800;
 }
 
 .calendarManageButton {

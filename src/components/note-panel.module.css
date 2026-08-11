@@ -386,9 +386,9 @@
 
 @media (max-width: 640px) {
   .notesPanel {
-    width: min(calc(100% - 12px), 430px);
-    bottom: max(6px, env(safe-area-inset-bottom, 0px));
-    aspect-ratio: 0.78;
+    width: min(calc(100% - 4px), 460px);
+    bottom: max(2px, env(safe-area-inset-bottom, 0px));
+    aspect-ratio: 0.64;
   }
 
   .notesPanelInner {

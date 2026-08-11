@@ -111,7 +111,7 @@ export function NotePanel({
     <section
       id="notes-panel"
       role="dialog"
-      aria-modal="true"
+      aria-modal="false"
       aria-label="Notes"
       aria-hidden={!isOpen}
       inert={!isOpen}
