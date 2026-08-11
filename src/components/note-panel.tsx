@@ -137,7 +137,7 @@ export function NotePanel({
             onClick={onClose}
             aria-label="Close notes"
           >
-            <span aria-hidden="true">x</span>
+            <span aria-hidden="true">×</span>
           </button>
         </header>
 
@@ -145,12 +145,10 @@ export function NotePanel({
           {notesStatus === "loading" && !hasHydrated ? (
             <div className={styles.emptyBoard}>
               <p>Loading shared notes...</p>
-              <span>Notes from everyone in this space will appear here.</span>
             </div>
           ) : hasHydrated && notes.length === 0 ? (
             <div className={styles.emptyBoard}>
               <p>No notes yet.</p>
-              <span>The first note in this space will show up here.</span>
             </div>
           ) : (
             <>
@@ -237,7 +235,7 @@ export function NotePanel({
               {selectedNote ? (
                 <p className={viewerTextClassName}>{selectedNote.text}</p>
               ) : (
-                <p className={styles.noteViewerEmpty}>Select a note to read it here.</p>
+                <p className={styles.noteViewerEmpty}>No notes yet.</p>
               )}
               <div className={styles.viewerActions}>
                 {selectedNote ? (

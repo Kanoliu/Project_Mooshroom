@@ -136,7 +136,6 @@ type InventoryStatus = "idle" | "loading" | "ready" | "error";
 
 const EVENT_TYPES: EventType[] = ["Entertainment", "Errand", "Meal", "Note"];
 const LOADING_FRAME_ICON = "/art/ui/Kettle.webp";
-const CARE_HINT_STORAGE_KEY = "project-mooshroom:care-hint-complete";
 
 const configuredAppUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
 const APP_OPEN_ACTIVITY_PREFIX = "user-activity:app-open";
@@ -359,7 +358,6 @@ export default function Home() {
   const [selectedCalendarDate, setSelectedCalendarDate] = useState(() => getTodayDateValue());
   const [selectedEventType, setSelectedEventType] = useState<EventType>("Entertainment");
   const [feedbackMessage, setFeedbackMessage] = useState("");
-  const [showCareHint, setShowCareHint] = useState(false);
   const [email, setEmail] = useState("");
   const [pendingEmail, setPendingEmail] = useState("");
   const [emailCode, setEmailCode] = useState("");
@@ -422,11 +420,6 @@ export default function Home() {
       setFeedbackMessage("");
       feedbackTimeoutRef.current = null;
     }, 2600);
-  };
-
-  const completeCareHint = () => {
-    setShowCareHint(false);
-    window.localStorage.setItem(CARE_HINT_STORAGE_KEY, "true");
   };
 
   const openNotesPanel = () => {
@@ -496,12 +489,7 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const hintTimeout = window.setTimeout(() => {
-      setShowCareHint(window.localStorage.getItem(CARE_HINT_STORAGE_KEY) !== "true");
-    }, 0);
-
     return () => {
-      window.clearTimeout(hintTimeout);
       if (feedbackTimeoutRef.current !== null) {
         window.clearTimeout(feedbackTimeoutRef.current);
       }
@@ -1192,7 +1180,6 @@ export default function Home() {
 
     setCurrentFrame(0);
     setPetAnimation("petreact");
-    announceFeedback("Mooshroom looks happy.");
   };
 
   const triggerPetEat = () => {
@@ -1669,7 +1656,6 @@ export default function Home() {
       setEditingNoteId(null);
       setIsNoteEditing(false);
       openNotesPanel();
-      announceFeedback("Note updated.");
       return;
     }
 
@@ -1721,7 +1707,6 @@ export default function Home() {
     setEditingNoteId(null);
     setIsNoteEditing(false);
     openNotesPanel();
-    announceFeedback("Note saved.");
   };
 
   const handleCalendarEventSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -1779,7 +1764,6 @@ export default function Home() {
       setCalendarEventDraft("");
       setEditingCalendarEventId(null);
       setCalendarEventsStatus("ready");
-      announceFeedback("Event updated.");
       return;
     }
 
@@ -1836,7 +1820,6 @@ export default function Home() {
     setCalendarEventsStatus("ready");
     setCalendarEventDraft("");
     setSelectedEventType("Entertainment");
-    announceFeedback("Event added.");
   };
 
   const handleCalendarEventDelete = async (eventId: string) => {
@@ -1870,7 +1853,6 @@ export default function Home() {
       setCalendarEventDraft("");
     }
     setCalendarEventsStatus("ready");
-    announceFeedback("Event removed.");
   };
 
   const handleFoodPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -1936,7 +1918,6 @@ export default function Home() {
     if (isDroppedOnPet && selectedPetStage === "pet") {
       triggerPetEat();
       void feedPet();
-      announceFeedback("Mooshroom enjoyed the snack.");
     }
 
     if (foodButtonRef.current?.hasPointerCapture(event.pointerId)) {
@@ -1965,10 +1946,6 @@ export default function Home() {
 
     if (isDroppedOnPet) {
       triggerWaterEffect();
-      completeCareHint();
-      announceFeedback(
-        selectedPetStage === "pet" ? "Mooshroom has been watered." : "The little Mooshroom is growing.",
-      );
 
       if (selectedPetStage === "pet") {
         triggerPetWater();
@@ -1984,10 +1961,6 @@ export default function Home() {
 
     event.preventDefault();
     triggerWaterEffect();
-    completeCareHint();
-    announceFeedback(
-      selectedPetStage === "pet" ? "Mooshroom has been watered." : "The little Mooshroom is growing.",
-    );
 
     if (selectedPetStage === "pet") {
       triggerPetWater();
@@ -2003,7 +1976,6 @@ export default function Home() {
     event.preventDefault();
     triggerPetEat();
     void feedPet();
-    announceFeedback("Mooshroom enjoyed the snack.");
   };
 
   const activePetFrames = getActivePetFrames(selectedPetStage, petAnimation);
@@ -2465,16 +2437,6 @@ export default function Home() {
             ) : null}
           </aside>
 
-          {showCareHint && !isDialogOpen ? (
-            <div className={styles.careHint} role="note">
-              <button type="button" onClick={completeCareHint} aria-label="Dismiss care hint">
-                ×
-              </button>
-              <strong>Help Mooshroom grow</strong>
-              <span>Drag the kettle onto Mooshroom.</span>
-            </div>
-          ) : null}
-
           <div
             className={`${styles.petStage} ${
               selectedPetStage !== "pet" ? styles.petStagePreview : ""
@@ -2747,13 +2709,6 @@ export default function Home() {
                   <div className={styles.calendarFooterSummary}>
                     <div className={styles.calendarDaySummary}>
                       <strong>{formatCalendarDate(selectedCalendarDate)}</strong>
-                      <span>
-                        {selectedDateEvents.length === 0
-                          ? "No events yet"
-                          : `${selectedDateEvents.length} event${
-                              selectedDateEvents.length === 1 ? "" : "s"
-                            }`}
-                      </span>
                     </div>
                     <button
                       type="button"

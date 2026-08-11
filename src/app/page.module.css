@@ -913,7 +913,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   height: 100%;
   min-width: 0;
 }
@@ -922,14 +922,14 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 94px;
-  min-height: 40px;
-  padding: 0 16px;
-  border: 0;
+  min-width: 82px;
+  min-height: 36px;
+  padding: 0 13px;
+  border: 1px solid rgba(91, 55, 31, 0.42);
   border-radius: 999px;
-  background: #765039;
-  box-shadow: 0 8px 16px rgba(74, 49, 33, 0.18);
-  color: #fffaf2;
+  background: rgba(244, 222, 181, 0.48);
+  box-shadow: 0 3px 7px rgba(74, 49, 33, 0.1);
+  color: #3d2618;
   font: inherit;
   font-size: 0.82rem;
   font-weight: 800;
@@ -1159,49 +1159,6 @@
   }
 }
 
-.careHint {
-  position: absolute;
-  right: 64px;
-  bottom: max(74px, calc(env(safe-area-inset-bottom, 0px) + 66px));
-  z-index: 7;
-  display: grid;
-  gap: 2px;
-  width: min(230px, calc(100% - 128px));
-  padding: 12px 36px 12px 14px;
-  border: 1px solid rgba(111, 71, 45, 0.2);
-  border-radius: 18px;
-  background: rgba(255, 248, 236, 0.94);
-  box-shadow: 0 14px 28px rgba(65, 47, 35, 0.2);
-  color: #3d2618;
-}
-
-.careHint strong {
-  font-size: 0.9rem;
-}
-
-.careHint span {
-  font-size: 0.78rem;
-  line-height: 1.35;
-}
-
-.careHint button {
-  position: absolute;
-  top: 5px;
-  right: 6px;
-  display: inline-grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: #3d2618;
-  font: inherit;
-  font-size: 1.1rem;
-  cursor: pointer;
-}
-
 .feedbackToast {
   position: absolute;
   left: 50%;
@@ -1248,12 +1205,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.calendarDaySummary span {
-  flex: 0 0 auto;
-  color: rgba(47, 24, 12, 0.64);
-  font-size: 0.72rem;
 }
 
 .calendarEventList {
