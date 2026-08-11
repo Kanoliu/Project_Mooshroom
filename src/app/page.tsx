@@ -120,8 +120,15 @@ type DragState = {
   originY: number;
 };
 
+type PetPressState = {
+  pointerId: number;
+  startX: number;
+  startY: number;
+  triggered: boolean;
+};
+
 type PetStageId = "stage0" | "stage1" | "stage2" | "stage3" | "pet";
-type PetAnimation = "idle" | "note" | "petreact" | "eat" | "water" | "dig";
+type PetAnimation = "idle" | "note" | "petreact" | "eat" | "water" | "dig" | "inhale";
 type AuthStatus =
   | "setup-required"
   | "idle"
@@ -178,6 +185,11 @@ const petDigFrames = Array.from({ length: 60 }, (_, index) => {
   return `/art/pets/dig/frame_${frameNumber}.webp`;
 });
 
+const petInhaleFrames = Array.from({ length: 60 }, (_, index) => {
+  const frameNumber = String(index + 1).padStart(4, "0");
+  return `/art/pets/inhale/frame_${frameNumber}.webp`;
+});
+
 const stage3PetReactFrames = Array.from({ length: 60 }, (_, index) => {
   const frameNumber = String(index + 1).padStart(4, "0");
   return `/art/pets/stage3-petreact/frame_${frameNumber}.webp`;
@@ -216,6 +228,8 @@ function getActivePetFrames(
         return petWaterFrames;
       case "dig":
         return petDigFrames;
+      case "inhale":
+        return petInhaleFrames;
       default:
         return petFrames;
     }
@@ -477,6 +491,9 @@ export default function Home() {
   const kettleDragRef = useRef<DragState | null>(null);
   const digRewardTimeoutRef = useRef<number | null>(null);
   const feedbackTimeoutRef = useRef<number | null>(null);
+  const petLongPressTimeoutRef = useRef<number | null>(null);
+  const petPressRef = useRef<PetPressState | null>(null);
+  const suppressPetTapRef = useRef(false);
   const pendingDigSequenceRef = useRef<Promise<DigSequenceResult> | null>(null);
   const finishDigSequenceRef = useRef<() => Promise<void>>(async () => {});
 
@@ -492,6 +509,9 @@ export default function Home() {
     return () => {
       if (feedbackTimeoutRef.current !== null) {
         window.clearTimeout(feedbackTimeoutRef.current);
+      }
+      if (petLongPressTimeoutRef.current !== null) {
+        window.clearTimeout(petLongPressTimeoutRef.current);
       }
     };
   }, []);
@@ -985,6 +1005,7 @@ export default function Home() {
             ...petEatFrames,
             ...petWaterFrames,
             ...petDigFrames,
+            ...petInhaleFrames,
           ]
         : selectedPetStage === "stage3"
           ? [...petStageFrames.stage3, ...stage3PetReactFrames]
@@ -1099,7 +1120,7 @@ export default function Home() {
     const shouldPlayOnce =
       petAnimation !== "idle" && (!isPreviewStage || selectedPetStage === "stage3");
     const activeFrames = getActivePetFrames(selectedPetStage, petAnimation);
-    const frameDuration = isPreviewStage ? 70 : 100;
+    const frameDuration = petAnimation === "inhale" ? 1000 / 24 : isPreviewStage ? 70 : 100;
     let lastFrameTime = performance.now();
 
     const tick = (timestamp: number) => {
@@ -1173,6 +1194,11 @@ export default function Home() {
   }, [isWaterEffectPlaying]);
 
   const handlePetTap = () => {
+    if (suppressPetTapRef.current) {
+      suppressPetTapRef.current = false;
+      return;
+    }
+
     if (selectedPetStage !== "pet" && selectedPetStage !== "stage3") {
       announceFeedback("Mooshroom is still growing. Try watering it with the kettle.");
       return;
@@ -1180,6 +1206,69 @@ export default function Home() {
 
     setCurrentFrame(0);
     setPetAnimation("petreact");
+  };
+
+  const clearPetLongPressTimer = () => {
+    if (petLongPressTimeoutRef.current !== null) {
+      window.clearTimeout(petLongPressTimeoutRef.current);
+      petLongPressTimeoutRef.current = null;
+    }
+  };
+
+  const handlePetPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    if (event.button !== 0 || selectedPetStage !== "pet" || isDiggingForReward) {
+      return;
+    }
+
+    clearPetLongPressTimer();
+    suppressPetTapRef.current = false;
+    petPressRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      triggered: false,
+    };
+    event.currentTarget.setPointerCapture(event.pointerId);
+    petLongPressTimeoutRef.current = window.setTimeout(() => {
+      const press = petPressRef.current;
+      if (!press || press.pointerId !== event.pointerId) {
+        return;
+      }
+
+      press.triggered = true;
+      suppressPetTapRef.current = true;
+      petLongPressTimeoutRef.current = null;
+      setCurrentFrame(0);
+      setPetAnimation("inhale");
+    }, 550);
+  };
+
+  const handlePetPointerMove = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const press = petPressRef.current;
+    if (!press || press.pointerId !== event.pointerId || press.triggered) {
+      return;
+    }
+
+    if (Math.hypot(event.clientX - press.startX, event.clientY - press.startY) > 12) {
+      clearPetLongPressTimer();
+      petPressRef.current = null;
+    }
+  };
+
+  const finishPetPress = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    const press = petPressRef.current;
+    if (press?.pointerId !== event.pointerId) {
+      return;
+    }
+
+    clearPetLongPressTimer();
+    petPressRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+    if (event.type === "pointercancel" && press.triggered) {
+      suppressPetTapRef.current = false;
+    }
   };
 
   const triggerPetEat = () => {
@@ -2506,7 +2595,12 @@ export default function Home() {
                 selectedPetStage !== "pet" ? styles.petButtonStagePreview : ""
               }`}
               onClick={handlePetTap}
-              aria-label="Pet Mooshroom"
+              onPointerDown={handlePetPointerDown}
+              onPointerMove={handlePetPointerMove}
+              onPointerUp={finishPetPress}
+              onPointerCancel={finishPetPress}
+              onContextMenu={(event) => event.preventDefault()}
+              aria-label="Pet Mooshroom; press and hold for inhale animation"
             >
               <img
                 src={activePetFrames[currentFrame]}

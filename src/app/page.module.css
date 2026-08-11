@@ -577,6 +577,9 @@
   background: transparent;
   isolation: isolate;
   cursor: pointer;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-touch-callout: none;
   transform: translateZ(0);
   backface-visibility: hidden;
 }
