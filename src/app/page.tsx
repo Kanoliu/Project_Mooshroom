@@ -436,7 +436,22 @@ export default function Home() {
     }, 2600);
   };
 
+  const anchorSceneBeforePanelSwitch = () => {
+    if (document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+    });
+  };
+
   const openNotesPanel = () => {
+    anchorSceneBeforePanelSwitch();
     setIsNoteOpen(true);
     setIsCalendarOpen(false);
     setIsBackpackOpen(false);
@@ -451,6 +466,7 @@ export default function Home() {
   };
 
   const openCalendarPanel = () => {
+    anchorSceneBeforePanelSwitch();
     const today = new Date();
     setCalendarViewDate(new Date(today.getFullYear(), today.getMonth(), 1));
     setSelectedCalendarDate(getTodayDateValue());
@@ -459,7 +475,6 @@ export default function Home() {
     setIsNoteOpen(false);
     setIsBackpackOpen(false);
     setIsAuthMenuOpen(false);
-    window.setTimeout(() => calendarPanelRef.current?.focus({ preventScroll: true }), 0);
   };
 
   const closeCalendarPanel = () => {
@@ -471,11 +486,11 @@ export default function Home() {
   };
 
   const openBackpackPanel = () => {
+    anchorSceneBeforePanelSwitch();
     setIsBackpackOpen(true);
     setIsCalendarOpen(false);
     setIsNoteOpen(false);
     setIsAuthMenuOpen(false);
-    window.setTimeout(() => backpackPanelRef.current?.focus({ preventScroll: true }), 0);
   };
 
   const closeBackpackPanel = () => {
@@ -2183,6 +2198,7 @@ export default function Home() {
                       className={styles.frameAction}
                       onClick={() => {
                         const shouldOpenSettings = !isAuthMenuOpen;
+                        anchorSceneBeforePanelSwitch();
                         setIsAuthMenuOpen(shouldOpenSettings);
                         if (shouldOpenSettings) {
                           setIsNoteOpen(false);
