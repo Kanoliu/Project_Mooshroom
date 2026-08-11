@@ -15,6 +15,7 @@ import {
   useState,
 } from "react";
 import { MonthCalendar } from "@/components/calendar/month-calendar";
+import { ChatPanel } from "@/components/chat-panel";
 import { NotePanel } from "@/components/note-panel";
 import { PwaSettings } from "@/components/pwa-settings";
 import { supabase } from "@/lib/supabase";
@@ -351,6 +352,8 @@ export default function Home() {
   const [isNoteOpen, setIsNoteOpen] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [isBackpackOpen, setIsBackpackOpen] = useState(false);
+  const [isChatOpen, setIsChatOpen] = useState(false);
+  const [isChatOpening, setIsChatOpening] = useState(false);
   const [isAuthMenuOpen, setIsAuthMenuOpen] = useState(false);
   const [isNoteEditing, setIsNoteEditing] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
@@ -498,6 +501,7 @@ export default function Home() {
     window.setTimeout(() => backpackButtonRef.current?.focus({ preventScroll: true }), 0);
   };
   const petButtonRef = useRef<HTMLButtonElement>(null);
+  const pendingChatOpenRef = useRef(false);
   const animationFrameRef = useRef<number | null>(null);
   const waterEffectFrameRef = useRef<number | null>(null);
   const hadNoteOpenRef = useRef(false);
@@ -511,6 +515,30 @@ export default function Home() {
   const suppressPetTapRef = useRef(false);
   const pendingDigSequenceRef = useRef<Promise<DigSequenceResult> | null>(null);
   const finishDigSequenceRef = useRef<() => Promise<void>>(async () => {});
+
+  const closeChatPanel = () => {
+    pendingChatOpenRef.current = false;
+    setIsChatOpening(false);
+    setIsChatOpen(false);
+    window.setTimeout(() => petButtonRef.current?.focus({ preventScroll: true }), 0);
+  };
+
+  const beginChatEntrance = () => {
+    if (selectedPetStage !== "pet") {
+      announceFeedback("Mooshroom is still growing. Keep caring for it to unlock chat.");
+      return;
+    }
+
+    anchorSceneBeforePanelSwitch();
+    setIsNoteOpen(false);
+    setIsCalendarOpen(false);
+    setIsBackpackOpen(false);
+    setIsAuthMenuOpen(false);
+    pendingChatOpenRef.current = true;
+    setIsChatOpening(true);
+    setCurrentFrame(0);
+    setPetAnimation("inhale");
+  };
 
   const resetWindowViewport = () => {
     window.setTimeout(() => {
@@ -1006,6 +1034,26 @@ export default function Home() {
     };
   }, [activeSpaceId, currentUser]);
 
+  useEffect(() => {
+    if (!activeSpaceId || !hasResolvedPetStage || selectedPetStage !== "pet") {
+      return;
+    }
+
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("chat") !== "1") {
+      return;
+    }
+
+    setIsNoteOpen(false);
+    setIsCalendarOpen(false);
+    setIsBackpackOpen(false);
+    setIsAuthMenuOpen(false);
+    setIsChatOpening(false);
+    setIsChatOpen(true);
+    url.searchParams.delete("chat");
+    window.history.replaceState({}, "", `${url.pathname}${url.search}${url.hash}`);
+  }, [activeSpaceId, hasResolvedPetStage, selectedPetStage]);
+
   const sceneAssetUrls = useMemo(() => {
     if (activeSpaceId && !hasResolvedPetStage) {
       return BASE_SCENE_ASSET_URLS;
@@ -1149,6 +1197,11 @@ export default function Home() {
                 void finishDigSequenceRef.current();
                 return;
               }
+              if (petAnimation === "inhale" && pendingChatOpenRef.current) {
+                pendingChatOpenRef.current = false;
+                setIsChatOpening(false);
+                setIsChatOpen(true);
+              }
               setPetAnimation("idle");
               setCurrentFrame(0);
             }, 0);
@@ -1214,13 +1267,7 @@ export default function Home() {
       return;
     }
 
-    if (selectedPetStage !== "pet" && selectedPetStage !== "stage3") {
-      announceFeedback("Mooshroom is still growing. Try watering it with the kettle.");
-      return;
-    }
-
-    setCurrentFrame(0);
-    setPetAnimation("petreact");
+    beginChatEntrance();
   };
 
   const clearPetLongPressTimer = () => {
@@ -1253,8 +1300,7 @@ export default function Home() {
       press.triggered = true;
       suppressPetTapRef.current = true;
       petLongPressTimeoutRef.current = null;
-      setCurrentFrame(0);
-      setPetAnimation("inhale");
+      beginChatEntrance();
     }, 550);
   };
 
@@ -2097,7 +2143,8 @@ export default function Home() {
     authStatus === "syncing-space" ||
     (activeSpaceId !== null && !hasResolvedPetStage) ||
     !isInitialSceneReady;
-  const isDialogOpen = isNoteOpen || isCalendarOpen || isBackpackOpen;
+  const isDialogOpen =
+    isNoteOpen || isCalendarOpen || isBackpackOpen || isChatOpen || isChatOpening;
 
   const feedPet = async () => {
     if (!activeSpaceId) {
@@ -2180,6 +2227,7 @@ export default function Home() {
           <section
             className={styles.topDock}
             aria-label="Top user interface"
+            inert={isChatOpen || isChatOpening}
           >
             {topUiSlots.map((slot) => (
               <div key={slot.id} className={styles.topDockSlot}>
@@ -2623,7 +2671,7 @@ export default function Home() {
               onPointerUp={finishPetPress}
               onPointerCancel={finishPetPress}
               onContextMenu={(event) => event.preventDefault()}
-              aria-label="Pet Mooshroom; press and hold for inhale animation"
+              aria-label="Chat with Mooshroom"
             >
               <img
                 src={activePetFrames[currentFrame]}
@@ -2652,6 +2700,14 @@ export default function Home() {
               ) : null}
             </button>
           </div>
+
+          <ChatPanel
+            currentUserId={currentUser?.id ?? null}
+            open={isChatOpen}
+            onClose={closeChatPanel}
+            spaceId={activeSpaceId}
+            spaceName={currentSpaceName}
+          />
 
           <section
             ref={calendarPanelRef}
