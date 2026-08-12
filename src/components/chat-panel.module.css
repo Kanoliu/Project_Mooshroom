@@ -188,9 +188,9 @@
 .messageBubble p {
   margin: 0;
   white-space: pre-wrap;
-  font-size: clamp(0.88rem, 2.8vw, 1rem);
+  font-size: clamp(1.02rem, 3.2vw, 1.15rem);
   font-weight: 800;
-  line-height: 1.34;
+  line-height: 1.38;
   text-shadow:
     0 1px 0 rgba(255, 252, 239, 0.85),
     0 0 4px rgba(255, 252, 239, 0.65);
@@ -225,8 +225,8 @@
 }
 
 .bubble_small {
-  padding-top: 9%;
-  padding-bottom: 16%;
+  padding-top: 14%;
+  padding-bottom: 11%;
 }
 
 .bubble_medium {
@@ -421,7 +421,10 @@
     padding-left: 10px;
   }
 
-  .messageBubble p,
+  .messageBubble p {
+    font-size: 18px;
+  }
+
   .composerInput {
     font-size: 16px;
   }
