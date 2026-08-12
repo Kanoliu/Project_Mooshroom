@@ -31,6 +31,23 @@
   border: 2px solid rgba(130, 94, 65, 0.55);
   background: #f4ecde;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.scene img {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-user-drag: none;
+}
+
+.scene input,
+.scene textarea {
+  user-select: text;
+  -webkit-user-select: text;
 }
 
 .loadingScreen {
@@ -346,16 +363,10 @@
   color: #9a2f2f;
 }
 
-.frameAction:hover {
-  transform: translateY(-1px);
-}
-
-.frameAction:focus-visible,
 .panelClose:focus-visible,
 .authInput:focus-visible,
 .authButton:focus-visible,
 .authSecondaryButton:focus-visible,
-.resourceButton:focus-visible,
 .calendarSelect:focus-visible,
 .calendarDateInput:focus-visible,
 .calendarTextarea:focus-visible,
@@ -365,6 +376,22 @@
 .calendarFooterSaveButton:focus-visible {
   outline: 2px solid rgba(141, 95, 54, 0.8);
   outline-offset: 2px;
+}
+
+.frameAction:focus-visible,
+.resourceButton:focus-visible {
+  outline: none;
+}
+
+.frameAction:focus-visible .frameIcon,
+.resourceButton:focus-visible .resourceIcon {
+  filter: drop-shadow(0 0 3px rgba(141, 95, 54, 0.95));
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .frameAction:hover {
+    transform: translateY(-1px);
+  }
 }
 
 .petStage {
@@ -1656,10 +1683,6 @@
   transition: none;
 }
 
-.resourceButton:hover {
-  transform: translate(var(--drag-x), var(--drag-y)) translateY(-1px);
-}
-
 .resourceButton:active {
   cursor: grabbing;
 }
@@ -1667,6 +1690,12 @@
 .resourceIcon {
   object-fit: contain;
   transform: scale(0.88);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .resourceButton:hover {
+    transform: translate(var(--drag-x), var(--drag-y)) translateY(-1px);
+  }
 }
 
 @media (max-width: 640px) {

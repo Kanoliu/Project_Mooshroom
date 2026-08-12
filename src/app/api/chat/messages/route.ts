@@ -27,6 +27,14 @@ type SendMessageRequestBody = {
   text?: string;
 };
 
+function getChatDatabaseError(error: { code?: string; message: string }) {
+  if (error.code === "PGRST205" || /chat_messages/i.test(error.message) && /could not find/i.test(error.message)) {
+    return "Chat storage has not been installed. Apply the latest Supabase migrations and try again.";
+  }
+
+  return error.message;
+}
+
 function getBearerToken(request: Request) {
   const authorizationHeader = request.headers.get("authorization");
   if (!authorizationHeader?.startsWith("Bearer ")) {
@@ -194,7 +202,7 @@ export async function GET(request: Request) {
       .limit(100);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json({ error: getChatDatabaseError(error) }, { status: 500 });
     }
 
     const messages = ((data ?? []) as ChatMessageRow[]).reverse().map(toChatMessage);
@@ -252,7 +260,10 @@ export async function POST(request: Request) {
       .single();
 
     if (error || !data) {
-      return NextResponse.json({ error: error?.message ?? "Could not save message." }, { status: 500 });
+      return NextResponse.json(
+        { error: error ? getChatDatabaseError(error) : "Could not save message." },
+        { status: 500 },
+      );
     }
 
     const notified = await notifyOtherSpaceMembers(

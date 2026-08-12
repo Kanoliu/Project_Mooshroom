@@ -40,6 +40,13 @@ If your PowerShell prompt shows a `\\?\` path and `npm run sync:art` fails, use 
 .\scripts\sync-art.ps1
 ```
 
+Apply the database migrations before testing shared features such as chat:
+
+```bash
+npx supabase link --project-ref <project-ref>
+npx supabase db push
+```
+
 ## Project Notes
 
 - The manifest is generated from `src/app/manifest.ts`.

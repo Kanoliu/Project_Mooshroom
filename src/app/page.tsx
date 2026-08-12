@@ -2006,6 +2006,7 @@ export default function Home() {
   };
 
   const handleFoodPointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
     setIsFoodDragging(true);
     foodDragRef.current = {
       pointerId: event.pointerId,
@@ -2030,6 +2031,7 @@ export default function Home() {
   };
 
   const handleKettlePointerDown = (event: ReactPointerEvent<HTMLButtonElement>) => {
+    event.preventDefault();
     setIsKettleDragging(true);
     kettleDragRef.current = {
       pointerId: event.pointerId,
