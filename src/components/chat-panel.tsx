@@ -123,7 +123,7 @@ function formatMessageDay(createdAt: string) {
 function getChatBubbleWidth(text: string, size: ChatBubbleSize) {
   const textWeight = getChatTextWeight(text);
   const widths: Record<ChatBubbleSize, { minimum: number; maximum: number; growth: number }> = {
-    small: { minimum: 190, maximum: 292, growth: 2.8 },
+    small: { minimum: 138, maximum: 238, growth: 2.2 },
     medium: { minimum: 270, maximum: 348, growth: 0.9 },
     large: { minimum: 330, maximum: 382, growth: 0.3 },
     "extra-large": { minimum: 360, maximum: 400, growth: 0.12 },
@@ -394,8 +394,10 @@ export function ChatPanel({ currentUserId, onClose, open, spaceId, spaceName }: 
                       "--bubble-width": `${getChatBubbleWidth(message.text, displayBubbleSize)}px`,
                     } as BubbleStyle}
                   >
-                    {!isOwnMessage ? <strong className={styles.senderName}>{message.senderName}</strong> : null}
-                    <p>{message.text}</p>
+                    <div className={styles.messageContent}>
+                      {!isOwnMessage ? <strong className={styles.senderName}>{message.senderName}</strong> : null}
+                      <p>{message.text}</p>
+                    </div>
                     <time dateTime={message.createdAt}>{formatMessageTime(message.createdAt)}</time>
                   </div>
                 </article>
