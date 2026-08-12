@@ -28,9 +28,9 @@ function getSpaceEventMessage(body: SpaceEventRequestBody) {
     body:
       body.body?.trim() ||
       (isCalendarEvent
-        ? "New plan dropped. The mushroom says you may want to peek."
-        : "New note dropped. The mushroom says it is probably important."),
-    title: body.title?.trim() || "Project Mooshroom",
+        ? "New plan dropped. Mori says you may want to peek."
+        : "New note dropped. Mori says it is probably important."),
+    title: body.title?.trim() || "Mori's Cabin",
     url: body.url?.trim() || "/",
   };
 }

@@ -3,9 +3,9 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Project Mooshroom",
-    short_name: "Mooshroom",
-    description: "Project Mooshroom is a cozy pet companion you can install on your Home Screen.",
+    name: "Mori's Cabin",
+    short_name: "Mori's Cabin",
+    description: "Mori's Cabin is a cozy pet companion you can install on your Home Screen.",
     start_url: "/",
     scope: "/",
     display: "standalone",

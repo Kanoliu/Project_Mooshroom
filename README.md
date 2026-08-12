@@ -1,4 +1,4 @@
-# Project Mooshroom
+# Mori's Cabin
 
 Phone pet prototype built with Next.js as an installable Progressive Web App.
 

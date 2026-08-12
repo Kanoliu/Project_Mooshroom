@@ -115,8 +115,8 @@ export async function sendWebPushPing(subscription: StoredPushSubscription) {
 
 export function getDefaultPushMessage(): PushMessage {
   return {
-    body: "Your pet has a fresh update waiting for you.",
-    title: "Project Mooshroom",
+    body: "Mori has a fresh update waiting for you.",
+    title: "Mori's Cabin",
     url: "/",
   };
 }

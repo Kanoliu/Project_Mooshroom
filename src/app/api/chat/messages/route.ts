@@ -112,18 +112,13 @@ async function authenticateSpaceMember(request: Request, spaceId: string) {
 async function notifyOtherSpaceMembers(
   spaceId: string,
   senderUserId: string,
-  senderName: string,
-  text: string,
 ) {
   const supabaseAdmin = getSupabaseAdminClient();
-  const [{ data: subscriptions }, { data: space }] = await Promise.all([
-    supabaseAdmin
-      .from("web_push_subscriptions")
-      .select("auth, endpoint, endpoint_hash, p256dh")
-      .eq("space_id", spaceId)
-      .neq("user_id", senderUserId),
-    supabaseAdmin.from("spaces").select("name").eq("id", spaceId).maybeSingle(),
-  ]);
+  const { data: subscriptions } = await supabaseAdmin
+    .from("web_push_subscriptions")
+    .select("auth, endpoint, endpoint_hash, p256dh")
+    .eq("space_id", spaceId)
+    .neq("user_id", senderUserId);
 
   if (!subscriptions?.length) {
     return 0;
@@ -131,8 +126,8 @@ async function notifyOtherSpaceMembers(
 
   const now = new Date().toISOString();
   const notification = {
-    title: space?.name ? `${space.name} chat` : "Project Mooshroom chat",
-    body: `${senderName}: ${text.length > 120 ? `${text.slice(0, 117)}…` : text}`,
+    title: "Mori's Cabin",
+    body: "Psst… Mori brought you a new message.",
     url: `/?space=${encodeURIComponent(spaceId)}&chat=1`,
   };
   const endpointHashes = subscriptions.map((subscription) => subscription.endpoint_hash);
@@ -269,8 +264,6 @@ export async function POST(request: Request) {
     const notified = await notifyOtherSpaceMembers(
       spaceId,
       authentication.user.id,
-      senderName,
-      text,
     );
 
     return NextResponse.json(

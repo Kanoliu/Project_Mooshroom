@@ -10,7 +10,14 @@ import {
   useRef,
   useState,
 } from "react";
-import { getChatBubbleAsset, type SharedChatMessage } from "@/lib/chat";
+import {
+  getChatBubbleAspectRatio,
+  getChatBubbleAsset,
+  getChatBubbleSize,
+  getChatTextWeight,
+  type ChatBubbleSize,
+  type SharedChatMessage,
+} from "@/lib/chat";
 import { supabase } from "@/lib/supabase";
 import styles from "./chat-panel.module.css";
 
@@ -23,7 +30,9 @@ type ChatPanelProps = {
 };
 
 type BubbleStyle = CSSProperties & {
+  "--bubble-aspect-ratio": number;
   "--bubble-image": string;
+  "--bubble-width": string;
 };
 
 type ChatMessagesResponse = {
@@ -109,6 +118,19 @@ function formatMessageDay(createdAt: string) {
     month: "short",
     year: date.getFullYear() === today.getFullYear() ? undefined : "numeric",
   }).format(date);
+}
+
+function getChatBubbleWidth(text: string, size: ChatBubbleSize) {
+  const textWeight = getChatTextWeight(text);
+  const widths: Record<ChatBubbleSize, { minimum: number; maximum: number; growth: number }> = {
+    small: { minimum: 190, maximum: 292, growth: 2.8 },
+    medium: { minimum: 270, maximum: 348, growth: 0.9 },
+    large: { minimum: 330, maximum: 382, growth: 0.3 },
+    "extra-large": { minimum: 360, maximum: 400, growth: 0.12 },
+  };
+  const sizing = widths[size];
+
+  return Math.min(sizing.maximum, Math.round(sizing.minimum + textWeight * sizing.growth));
 }
 
 export function ChatPanel({ currentUserId, onClose, open, spaceId, spaceName }: ChatPanelProps) {
@@ -303,10 +325,10 @@ export function ChatPanel({ currentUserId, onClose, open, spaceId, spaceName }: 
       />
       <section
         ref={panelRef}
-        id="mooshroom-chat"
+        id="mori-chat"
         role="dialog"
         aria-modal="true"
-        aria-labelledby="mooshroom-chat-title"
+        aria-labelledby="mori-chat-title"
         aria-hidden={!open}
         inert={!open}
         className={`${styles.panel} ${open ? styles.panelOpen : ""}`}
@@ -325,7 +347,7 @@ export function ChatPanel({ currentUserId, onClose, open, spaceId, spaceName }: 
             />
           </div>
           <div className={styles.headerText}>
-            <h2 id="mooshroom-chat-title">{spaceName || "Shared chat"}</h2>
+            <h2 id="mori-chat-title">{spaceName || "Shared chat"}</h2>
             <p><span aria-hidden="true" /> Shared space chat</p>
           </div>
         </header>
@@ -341,6 +363,7 @@ export function ChatPanel({ currentUserId, onClose, open, spaceId, spaceName }: 
             const dayKey = getDayKey(message.createdAt);
             const showDayMarker = dayKey !== previousDayKey;
             const isOwnMessage = message.senderUserId === currentUserId;
+            const displayBubbleSize = getChatBubbleSize(message.text);
             previousDayKey = dayKey;
 
             return (
@@ -355,15 +378,20 @@ export function ChatPanel({ currentUserId, onClose, open, spaceId, spaceName }: 
                   aria-label={`${isOwnMessage ? "You" : message.senderName} at ${formatMessageTime(message.createdAt)}`}
                 >
                   <div
-                    className={`${styles.messageBubble} ${styles[`bubble_${message.bubbleSize.replace("-", "_")}`]} ${
+                    className={`${styles.messageBubble} ${styles[`bubble_${displayBubbleSize.replace("-", "_")}`]} ${
                       isOwnMessage ? styles.messageBubbleUser : styles.messageBubblePet
                     }`}
                     style={{
+                      "--bubble-aspect-ratio": getChatBubbleAspectRatio(
+                        displayBubbleSize,
+                        message.bubbleVariant,
+                      ),
                       "--bubble-image": `url("${getChatBubbleAsset(
-                        message.bubbleSize,
+                        displayBubbleSize,
                         message.bubbleVariant,
                         isOwnMessage ? "sender" : "receiver",
                       )}")`,
+                      "--bubble-width": `${getChatBubbleWidth(message.text, displayBubbleSize)}px`,
                     } as BubbleStyle}
                   >
                     {!isOwnMessage ? <strong className={styles.senderName}>{message.senderName}</strong> : null}
@@ -383,12 +411,12 @@ export function ChatPanel({ currentUserId, onClose, open, spaceId, spaceName }: 
         </div>
 
         <form className={styles.composer} onSubmit={handleSubmit}>
-          <label className={styles.srOnly} htmlFor="mooshroom-chat-input">
+          <label className={styles.srOnly} htmlFor="mori-chat-input">
             Message shared space
           </label>
           <textarea
             ref={inputRef}
-            id="mooshroom-chat-input"
+            id="mori-chat-input"
             rows={3}
             maxLength={600}
             value={draft}

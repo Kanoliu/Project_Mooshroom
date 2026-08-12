@@ -26,7 +26,7 @@
   position: relative;
   min-height: min(var(--app-height, 92vh), 980px);
   height: 100%;
-  overflow: hidden;
+  overflow: clip;
   border-radius: 32px;
   border: 2px solid rgba(130, 94, 65, 0.55);
   background: #f4ecde;
@@ -718,19 +718,22 @@
 }
 
 .calendarPanelAgendaOpen {
-  position: fixed;
+  position: absolute;
+  inset: 0;
+  z-index: 14;
   width: min(
     calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 24px),
-    calc((var(--app-height) - 32px) * 1394 / 1859),
+    calc((100lvh - var(--app-safe-top) - var(--app-safe-bottom) - 32px) * 1394 / 1859),
     500px
   );
-  top: max(16px, env(safe-area-inset-top, 0px));
-  bottom: auto;
-  transform: translateX(-50%);
+  aspect-ratio: 1394 / 1859;
+  margin: auto;
+  transform: none;
+  transition: opacity 180ms ease;
 }
 
 .calendarPanelAgendaOpen.calendarPanelEditing {
-  transform: translateX(-50%);
+  transform: none;
 }
 
 .backpackPanelOpen {
@@ -2032,16 +2035,16 @@
   .calendarPanelAgendaOpen {
     width: min(
       calc(100vw - var(--app-safe-left) - var(--app-safe-right) - 16px),
-      calc((var(--app-height) - 16px) * 1394 / 1859),
+      calc((100lvh - var(--app-safe-top) - var(--app-safe-bottom) - 16px) * 1394 / 1859),
       500px
     );
-    top: max(8px, env(safe-area-inset-top, 0px));
-    bottom: auto;
-    transform: translateX(-50%);
+    inset: 0;
+    margin: auto;
+    transform: none;
   }
 
   .calendarPanelAgendaOpen.calendarPanelEditing {
-    transform: translateX(-50%);
+    transform: none;
   }
 
   .calendarEditorCard {

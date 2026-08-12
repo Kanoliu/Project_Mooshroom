@@ -1,4 +1,4 @@
-const CACHE_NAME = "project-mooshroom-v4";
+const CACHE_NAME = "moris-cabin-v5";
 const APP_SHELL = ["/", "/manifest.webmanifest", "/icon.png", "/icon.webp"];
 
 async function getPendingMessage() {
@@ -111,7 +111,7 @@ self.addEventListener("fetch", (event) => {
 self.addEventListener("push", (event) => {
   event.waitUntil(
     resolveNotificationPayload(event).then((payload) => {
-      const title = payload?.title ?? "Project Mooshroom";
+      const title = payload?.title ?? "Mori's Cabin";
       const body = payload?.body ?? "Your pet has a fresh update waiting for you.";
       const url = payload?.url ?? "/";
 

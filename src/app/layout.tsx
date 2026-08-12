@@ -10,10 +10,10 @@ const vartigo = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Project Mooshroom",
-  description: "Project Mooshroom is a cozy pet companion you can install on your Home Screen.",
+  title: "Mori's Cabin",
+  description: "Mori's Cabin is a cozy pet companion you can install on your Home Screen.",
   manifest: "/manifest.webmanifest",
-  applicationName: "Project Mooshroom",
+  applicationName: "Mori's Cabin",
   icons: {
     icon: [
       { url: "/icon.png", sizes: "192x192", type: "image/png" },
@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Mooshroom",
+    title: "Mori's Cabin",
   },
 };
 

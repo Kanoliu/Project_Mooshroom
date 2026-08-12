@@ -447,6 +447,11 @@ export default function Home() {
     window.scrollTo({ top: 0, left: 0, behavior: "auto" });
     document.documentElement.scrollTop = 0;
     document.body.scrollTop = 0;
+    const scene = calendarPanelRef.current?.parentElement;
+    if (scene) {
+      scene.scrollTop = 0;
+      scene.scrollLeft = 0;
+    }
 
     window.requestAnimationFrame(() => {
       window.scrollTo({ top: 0, left: 0, behavior: "auto" });
@@ -525,7 +530,7 @@ export default function Home() {
 
   const beginChatEntrance = () => {
     if (selectedPetStage !== "pet") {
-      announceFeedback("Mooshroom is still growing. Keep caring for it to unlock chat.");
+      announceFeedback("Mori is still growing. Keep caring for Mori to unlock chat.");
       return;
     }
 
@@ -541,10 +546,21 @@ export default function Home() {
   };
 
   const resetWindowViewport = () => {
-    window.setTimeout(() => {
+    const resetScrollPosition = () => {
       window.scrollTo({ top: 0, left: 0, behavior: "auto" });
       document.documentElement.scrollTop = 0;
       document.body.scrollTop = 0;
+
+      const scene = calendarPanelRef.current?.parentElement;
+      if (scene) {
+        scene.scrollTop = 0;
+        scene.scrollLeft = 0;
+      }
+    };
+
+    resetScrollPosition();
+    window.setTimeout(() => {
+      resetScrollPosition();
     }, 60);
   };
 
@@ -574,6 +590,12 @@ export default function Home() {
 
       root.style.setProperty("--app-height", `${appHeight}px`);
       root.style.setProperty("--keyboard-inset", `${keyboardInset}px`);
+
+      const scene = calendarPanelRef.current?.parentElement;
+      if (scene) {
+        scene.scrollTop = 0;
+        scene.scrollLeft = 0;
+      }
 
       if (
         keyboardInset === 0 &&
@@ -2549,7 +2571,7 @@ export default function Home() {
                     "--drag-y": `${kettleOffset.y}px`,
                   } as CSSProperties
                 }
-                aria-label="Water Mooshroom — drag the kettle or press Enter"
+                aria-label="Water Mori — drag the kettle or press Enter"
               >
                 <Image
                   src="/art/ui/Kettle.webp"
@@ -2585,7 +2607,7 @@ export default function Home() {
                       "--drag-y": `${foodOffset.y}px`,
                     } as CSSProperties
                   }
-                  aria-label="Feed Mooshroom — drag the food or press Enter"
+                  aria-label="Feed Mori — drag the food or press Enter"
                 >
                   <Image
                     src="/art/ui/Food.webp"
@@ -2611,7 +2633,7 @@ export default function Home() {
                 className={styles.petThoughtBubble}
                 onClick={handleDigForTreasure}
                 disabled={isDiggingForReward}
-                aria-label={isDiggingForReward ? "Digging for treasure" : "Ask Mooshroom to dig for treasure"}
+                aria-label={isDiggingForReward ? "Digging for treasure" : "Ask Mori to dig for treasure"}
               >
                 <span className={styles.petThoughtBubbleMain}>
                   <Image
@@ -2673,11 +2695,11 @@ export default function Home() {
               onPointerUp={finishPetPress}
               onPointerCancel={finishPetPress}
               onContextMenu={(event) => event.preventDefault()}
-              aria-label="Chat with Mooshroom"
+              aria-label="Chat with Mori"
             >
               <img
                 src={activePetFrames[currentFrame]}
-                alt="Mooshroom pet character."
+                alt="Mori, your pet character."
                 className={styles.pet}
                 width={220}
                 height={220}
@@ -2948,7 +2970,7 @@ export default function Home() {
                     unoptimized
                   />
                   <strong>Your backpack is empty</strong>
-                  <span>Care for Mooshroom and dig for treasures to collect items.</span>
+                  <span>Care for Mori and dig for treasures to collect items.</span>
                 </div>
               ) : (
                 <div className={styles.backpackShelfGrid}>
@@ -3086,11 +3108,11 @@ async function notifySpaceEvent(eventType: SpaceNotificationType, spaceId: strin
       body: JSON.stringify({
         body:
           eventType === "calendar"
-            ? "New plan dropped. The mushroom says you may want to peek."
-            : "New note dropped. The mushroom says it is probably important.",
+            ? "New plan dropped. Mori says you may want to peek."
+            : "New note dropped. Mori says it is probably important.",
         eventType,
         spaceId,
-        title: "Project Mooshroom",
+        title: "Mori's Cabin",
         url: `/?space=${encodeURIComponent(spaceId)}`,
       }),
     });
@@ -3459,7 +3481,7 @@ async function resolveDigSequence(
 ): Promise<DigSequenceResult> {
   if (currentPetState.xp < 10) {
     return {
-      error: "Mooshroom needs at least 10 XP to dig.",
+      error: "Mori needs at least 10 XP to dig.",
       item: null,
       petState: null,
       userId,
